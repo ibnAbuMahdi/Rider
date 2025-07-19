@@ -10,82 +10,120 @@ class Rider {
   final String id;
   
   @HiveField(1)
+  @JsonKey(name: 'phone_number') // Map to backend field name
   final String phoneNumber;
   
   @HiveField(2)
+  @JsonKey(name: 'first_name') // Map to backend field name
   final String? firstName;
   
   @HiveField(3)
+  @JsonKey(name: 'last_name') // Map to backend field name
   final String? lastName;
   
   @HiveField(4)
+  @JsonKey(name: 'profile_image_url')
   final String? profileImageUrl;
   
   @HiveField(5)
+  @JsonKey(name: 'is_active')
   final bool isActive;
   
   @HiveField(6)
+  @JsonKey(name: 'is_verified')
   final bool isVerified;
   
   @HiveField(7)
+  @JsonKey(name: 'fleet_owner_id')
   final String? fleetOwnerId;
   
   @HiveField(8)
+  @JsonKey(name: 'device_id')
   final String? deviceId;
   
   @HiveField(9)
+  @JsonKey(name: 'created_at')
   final DateTime createdAt;
   
   @HiveField(10)
+  @JsonKey(name: 'last_active_at')
   final DateTime? lastActiveAt;
   
   @HiveField(11)
+  @JsonKey(name: 'total_earnings')
   final double totalEarnings;
   
   @HiveField(12)
+  @JsonKey(name: 'available_balance')
   final double availableBalance;
   
   @HiveField(13)
+  @JsonKey(name: 'pending_balance')
   final double pendingBalance;
   
   @HiveField(14)
+  @JsonKey(name: 'total_campaigns')
   final int totalCampaigns;
   
   @HiveField(15)
+  @JsonKey(name: 'total_verifications')
   final int totalVerifications;
   
   @HiveField(16)
+  @JsonKey(name: 'average_rating')
   final double averageRating;
   
   @HiveField(17)
+  @JsonKey(name: 'referral_code')
   final String? referralCode;
   
   @HiveField(18)
   final Map<String, dynamic>? settings;
   
   @HiveField(19)
+  @JsonKey(name: 'has_completed_onboarding')
   final bool hasCompletedOnboarding;
   
   @HiveField(20)
+  @JsonKey(name: 'current_campaign_id')
   final String? currentCampaignId;
   
   @HiveField(21)
+  @JsonKey(name: 'last_sync_at')
   final DateTime? lastSyncAt;
   
   @HiveField(22)
+  @JsonKey(name: 'suspicious_activities')
   final List<String> suspiciousActivities;
   
   @HiveField(23)
+  @JsonKey(name: 'risk_score')
   final double riskScore;
   
   @HiveField(24)
+  @JsonKey(name: 'bank_account_number')
   final String? bankAccountNumber;
   
   @HiveField(25)
+  @JsonKey(name: 'bank_code')
   final String? bankCode;
   
   @HiveField(26)
+  @JsonKey(name: 'bank_account_name')
   final String? bankAccountName;
+
+  // Additional fields that might come from backend
+  @HiveField(27)
+  @JsonKey(name: 'rider_id')
+  final String? riderId; // Backend's STK-R-XXXXX format
+  
+  @HiveField(28)
+  @JsonKey(name: 'status')
+  final String? status; // pending, active, inactive, suspended
+  
+  @HiveField(29)
+  @JsonKey(name: 'verification_status')
+  final String? verificationStatus; // unverified, pending, verified, rejected
 
   const Rider({
     required this.id,
@@ -115,10 +153,117 @@ class Rider {
     this.bankAccountNumber,
     this.bankCode,
     this.bankAccountName,
+    this.riderId,
+    this.status,
+    this.verificationStatus,
   });
 
-  factory Rider.fromJson(Map<String, dynamic> json) => _$RiderFromJson(json);
-  Map<String, dynamic> toJson() => _$RiderToJson(this);
+  factory Rider.fromJson(Map<String, dynamic> json) {
+    // Handle date parsing with fallbacks
+    DateTime parseDateTime(dynamic value) {
+      if (value == null) return DateTime.now();
+      if (value is DateTime) return value;
+      if (value is String) {
+        try {
+          return DateTime.parse(value);
+        } catch (e) {
+          return DateTime.now();
+        }
+      }
+      return DateTime.now();
+    }
+
+    // Handle nullable DateTime parsing
+    DateTime? parseNullableDateTime(dynamic value) {
+      if (value == null) return null;
+      if (value is DateTime) return value;
+      if (value is String) {
+        try {
+          return DateTime.parse(value);
+        } catch (e) {
+          return null;
+        }
+      }
+      return null;
+    }
+
+    // Handle list parsing
+    List<String> parseStringList(dynamic value) {
+      if (value == null) return [];
+      if (value is List) {
+        return value.map((item) => item.toString()).toList();
+      }
+      return [];
+    }
+
+    return Rider(
+      id: json['id']?.toString() ?? '',
+      phoneNumber: json['phone_number']?.toString() ?? json['phone']?.toString() ?? '',
+      firstName: json['first_name']?.toString(),
+      lastName: json['last_name']?.toString(),
+      profileImageUrl: json['profile_image_url']?.toString(),
+      isActive: json['is_active'] == true,
+      isVerified: json['is_verified'] == true,
+      fleetOwnerId: json['fleet_owner_id']?.toString(),
+      deviceId: json['device_id']?.toString(),
+      createdAt: parseDateTime(json['created_at']),
+      lastActiveAt: parseNullableDateTime(json['last_active_at']),
+      totalEarnings: (json['total_earnings'] as num?)?.toDouble() ?? 0.0,
+      availableBalance: (json['available_balance'] as num?)?.toDouble() ?? 0.0,
+      pendingBalance: (json['pending_balance'] as num?)?.toDouble() ?? 0.0,
+      totalCampaigns: (json['total_campaigns'] as num?)?.toInt() ?? 0,
+      totalVerifications: (json['total_verifications'] as num?)?.toInt() ?? 0,
+      averageRating: (json['average_rating'] as num?)?.toDouble() ?? 0.0,
+      referralCode: json['referral_code']?.toString(),
+      settings: json['settings'] as Map<String, dynamic>?,
+      hasCompletedOnboarding: json['has_completed_onboarding'] == true,
+      currentCampaignId: json['current_campaign_id']?.toString(),
+      lastSyncAt: parseNullableDateTime(json['last_sync_at']),
+      suspiciousActivities: parseStringList(json['suspicious_activities']),
+      riskScore: (json['risk_score'] as num?)?.toDouble() ?? 0.0,
+      bankAccountNumber: json['bank_account_number']?.toString(),
+      bankCode: json['bank_code']?.toString(),
+      bankAccountName: json['bank_account_name']?.toString(),
+      riderId: json['rider_id']?.toString(),
+      status: json['status']?.toString(),
+      verificationStatus: json['verification_status']?.toString(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'phone_number': phoneNumber,
+      'first_name': firstName,
+      'last_name': lastName,
+      'profile_image_url': profileImageUrl,
+      'is_active': isActive,
+      'is_verified': isVerified,
+      'fleet_owner_id': fleetOwnerId,
+      'device_id': deviceId,
+      'created_at': createdAt.toIso8601String(),
+      'last_active_at': lastActiveAt?.toIso8601String(),
+      'total_earnings': totalEarnings,
+      'available_balance': availableBalance,
+      'pending_balance': pendingBalance,
+      'total_campaigns': totalCampaigns,
+      'total_verifications': totalVerifications,
+      'average_rating': averageRating,
+      'referral_code': referralCode,
+      'settings': settings,
+      'has_completed_onboarding': hasCompletedOnboarding,
+      'current_campaign_id': currentCampaignId,
+      'last_sync_at': lastSyncAt?.toIso8601String(),
+      'suspicious_activities': suspiciousActivities,
+      'risk_score': riskScore,
+      'bank_account_number': bankAccountNumber,
+      'bank_code': bankCode,
+      'bank_account_name': bankAccountName,
+      'rider_id': riderId,
+      'status': status,
+      'verification_status': verificationStatus,
+    };
+  }
 
   Rider copyWith({
     String? id,
@@ -148,6 +293,9 @@ class Rider {
     String? bankAccountNumber,
     String? bankCode,
     String? bankAccountName,
+    String? riderId,
+    String? status,
+    String? verificationStatus,
   }) {
     return Rider(
       id: id ?? this.id,
@@ -177,6 +325,12 @@ class Rider {
       bankAccountNumber: bankAccountNumber ?? this.bankAccountNumber,
       bankCode: bankCode ?? this.bankCode,
       bankAccountName: bankAccountName ?? this.bankAccountName,
+      riderId: riderId ?? this.riderId,
+      status: status ?? this.status,
+      verificationStatus: verificationStatus ?? this.verificationStatus,
+      riderId: riderId ?? this.riderId,
+      status: status ?? this.status,
+      verificationStatus: verificationStatus ?? this.verificationStatus,
     );
   }
 
@@ -230,6 +384,41 @@ class Rider {
     return difference.inDays < 7;
   }
 
+  // New getters for backend integration
+  bool get isReadyForOnboarding => !hasCompletedOnboarding && isVerified;
+  
+  bool get canStartCampaigns => hasCompletedOnboarding && isVerified && isActive;
+  
+  String get statusDisplay {
+    switch (status?.toLowerCase()) {
+      case 'pending':
+        return 'Pending Verification';
+      case 'active':
+        return 'Active';
+      case 'inactive':
+        return 'Inactive';
+      case 'suspended':
+        return 'Suspended';
+      default:
+        return 'Unknown';
+    }
+  }
+  
+  String get verificationStatusDisplay {
+    switch (verificationStatus?.toLowerCase()) {
+      case 'unverified':
+        return 'Not Verified';
+      case 'pending':
+        return 'Verification Pending';
+      case 'verified':
+        return 'Verified';
+      case 'rejected':
+        return 'Verification Rejected';
+      default:
+        return 'Unknown';
+    }
+  }
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -240,6 +429,6 @@ class Rider {
 
   @override
   String toString() {
-    return 'Rider{id: $id, phoneNumber: $phoneNumber, fullName: $fullName, isActive: $isActive}';
+    return 'Rider{id: $id, riderId: $riderId, phoneNumber: $phoneNumber, fullName: $fullName, isActive: $isActive, hasCompletedOnboarding: $hasCompletedOnboarding}';
   }
 }

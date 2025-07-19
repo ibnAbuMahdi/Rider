@@ -43,9 +43,9 @@ class ApiService {
     // Request interceptor for auth token
     _dio.interceptors.add(
       InterceptorsWrapper(
-        onRequest: (options, handler) async {
-          // Get auth token asynchronously
-          final token = await HiveService.getAuthToken();
+        onRequest: (options, handler) {
+          // Get auth token synchronously from HiveService
+          final token = HiveService.getAuthToken();
           if (token != null && token.isNotEmpty) {
             options.headers['Authorization'] = 'Bearer $token';
           }
@@ -229,12 +229,15 @@ class ApiService {
   }
 
   Future<void> _clearAuthData() async {
-    await HiveService.clearAuthToken();
-    await HiveService.clearRider();
+    // Use the comprehensive auth data clearing method
+    await HiveService.clearAuthData();
     
     // Notify about authentication failure
     // You might want to use a state management solution here
     // or emit an event that the UI can listen to
+    if (kDebugMode) {
+      print('🧹 Auth data cleared due to token expiry');
+    }
   }
 
   String _generateRequestId() {
@@ -548,7 +551,7 @@ class ApiService {
   // Safe notification polling methods
   Future<Map<String, dynamic>> checkVerificationRequest() async {
     try {
-      final response = await get('/rider/verification-check/');
+      final response = await get('/riders/verification-check/');
       return response.data as Map<String, dynamic>? ?? {'hasRequest': false};
     } catch (e) {
       if (kDebugMode) {
@@ -560,7 +563,7 @@ class ApiService {
 
   Future<Map<String, dynamic>> checkPaymentStatus() async {
     try {
-      final response = await get('/rider/payment-check/');
+      final response = await get('/riders/payment-check/');
       return response.data as Map<String, dynamic>? ?? {'hasUpdate': false};
     } catch (e) {
       if (kDebugMode) {
@@ -572,7 +575,7 @@ class ApiService {
 
   Future<Map<String, dynamic>> checkCampaignStatus() async {
     try {
-      final response = await get('/rider/campaign-check/');
+      final response = await get('/riders/campaign-check/');
       return response.data as Map<String, dynamic>? ?? {'hasUpdate': false};
     } catch (e) {
       if (kDebugMode) {

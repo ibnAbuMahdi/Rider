@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/constants/app_constants.dart'; // Added import
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../shared/widgets/loading_button.dart';
@@ -21,9 +22,30 @@ class OTPVerificationScreen extends ConsumerStatefulWidget {
 }
 
 class _OTPVerificationScreenState extends ConsumerState<OTPVerificationScreen> {
-  final List<TextEditingController> _controllers = List.generate(6, (index) => TextEditingController());
-  final List<FocusNode> _focusNodes = List.generate(6, (index) => FocusNode());
+  // Updated to use AppConstants.otpLength (4 digits)
+  late final List<TextEditingController> _controllers;
+  late final List<FocusNode> _focusNodes;
   String _otp = '';
+  bool _canResend = false;
+  int _resendCountdown = 60;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize controllers and focus nodes based on OTP length
+    _controllers = List.generate(AppConstants.otpLength, (index) => TextEditingController());
+    _focusNodes = List.generate(AppConstants.otpLength, (index) => FocusNode());
+    
+    // Start resend countdown
+    _startResendCountdown();
+    
+    // Auto-focus first field
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_focusNodes.isNotEmpty) {
+        _focusNodes[0].requestFocus();
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -34,6 +56,25 @@ class _OTPVerificationScreenState extends ConsumerState<OTPVerificationScreen> {
       focusNode.dispose();
     }
     super.dispose();
+  }
+
+  void _startResendCountdown() {
+    _canResend = false;
+    _resendCountdown = 60;
+    
+    Future.doWhile(() async {
+      await Future.delayed(const Duration(seconds: 1));
+      if (mounted) {
+        setState(() {
+          _resendCountdown--;
+          if (_resendCountdown <= 0) {
+            _canResend = true;
+          }
+        });
+        return _resendCountdown > 0;
+      }
+      return false;
+    });
   }
 
   @override
@@ -73,7 +114,7 @@ class _OTPVerificationScreenState extends ConsumerState<OTPVerificationScreen> {
               const SizedBox(height: 8),
               
               Text(
-                'We sent a 6-digit code to',
+                'We sent a ${AppConstants.otpLength}-digit code to', // Dynamic text
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: AppColors.textSecondary,
                 ),
@@ -89,159 +130,3 @@ class _OTPVerificationScreenState extends ConsumerState<OTPVerificationScreen> {
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 48),
-              
-              // OTP Input boxes
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(6, (index) => _buildOTPBox(index)),
-              ),
-              
-              // Error message
-              if (authState.error != null) ...[
-                const SizedBox(height: 24),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.errorLight,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.error),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.error_outline, color: AppColors.error),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          authState.error!,
-                          style: const TextStyle(color: AppColors.error),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-              
-              const SizedBox(height: 32),
-              
-              // Verify button
-              LoadingButton(
-                onPressed: _otp.length == 6 ? _verifyOTP : null,
-                isLoading: authState.isLoading,
-                child: const Text('VERIFY CODE'),
-              ),
-              
-              const SizedBox(height: 24),
-              
-              // Resend code
-              TextButton(
-                onPressed: authState.isLoading ? null : _resendOTP,
-                child: Text(
-                  'Didn\'t receive code? Resend',
-                  style: TextStyle(
-                    color: authState.isLoading ? AppColors.textSecondary : AppColors.primary,
-                  ),
-                ),
-              ),
-              
-              const Spacer(),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOTPBox(int index) {
-    return Container(
-      width: 45,
-      height: 55,
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: _focusNodes[index].hasFocus ? AppColors.primary : AppColors.border,
-          width: _focusNodes[index].hasFocus ? 2 : 1,
-        ),
-        borderRadius: BorderRadius.circular(8),
-        color: AppColors.surface,
-      ),
-      child: TextField(
-        controller: _controllers[index],
-        focusNode: _focusNodes[index],
-        textAlign: TextAlign.center,
-        keyboardType: TextInputType.number,
-        inputFormatters: [
-          FilteringTextInputFormatter.digitsOnly,
-          LengthLimitingTextInputFormatter(1),
-        ],
-        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-          fontWeight: FontWeight.bold,
-        ),
-        decoration: const InputDecoration(
-          border: InputBorder.none,
-          counterText: '',
-        ),
-        onChanged: (value) => _onOTPChanged(index, value),
-      ),
-    );
-  }
-
-  void _onOTPChanged(int index, String value) {
-    if (value.isNotEmpty) {
-      // Move to next field
-      if (index < 5) {
-        _focusNodes[index + 1].requestFocus();
-      } else {
-        // Last field, remove focus
-        _focusNodes[index].unfocus();
-      }
-    } else {
-      // Move to previous field if current is empty
-      if (index > 0) {
-        _focusNodes[index - 1].requestFocus();
-      }
-    }
-    
-    // Build OTP string
-    _otp = _controllers.map((controller) => controller.text).join();
-    setState(() {});
-  }
-
-  Future<void> _verifyOTP() async {
-    if (_otp.length != 6) return;
-    
-    // Clear any previous errors
-    ref.read(authProvider.notifier).clearError();
-    
-    final success = await ref.read(authProvider.notifier).verifyOTP(widget.phoneNumber, _otp);
-    
-    if (success && mounted) {
-      // Check if rider has completed onboarding
-      final rider = ref.read(authProvider).rider;
-      if (rider?.hasCompletedOnboarding == true) {
-        context.go('/home');
-      } else {
-        context.go('/onboarding');
-      }
-    }
-  }
-
-  Future<void> _resendOTP() async {
-    // Clear any previous errors
-    ref.read(authProvider.notifier).clearError();
-    
-    try {
-      await ref.read(authProvider.notifier).sendOTP(widget.phoneNumber);
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Verification code sent successfully'),
-            backgroundColor: AppColors.success,
-          ),
-        );
-      }
-    } catch (e) {
-      // Error is handled by the provider
-    }
-  }
-}

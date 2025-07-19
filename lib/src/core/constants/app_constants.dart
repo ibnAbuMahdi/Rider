@@ -4,13 +4,23 @@ class AppConstants {
   static const String appVersion = '1.0.0';
   static const String packageName = 'com.stika.rider';
   
-  // API Configuration
-  static const String baseUrl = 'https://api.stika.ng';
+  // API Configuration - UPDATED FOR YOUR BACKEND
+  static const String baseUrl = 'https://bold-sun-8647.fly.dev';  // Your Fly.io backend
   static const String apiVersion = 'v1';
   static const String apiTimeout = '30'; // seconds
   
+  // Full API endpoints
+  static String get apiBaseUrl => '$baseUrl/api/$apiVersion';
+  
+  // Authentication Endpoints - ADDED FOR KUDISMS
+  static const String sendOtpEndpoint = '/auth/send-otp/';
+  static const String verifyOtpEndpoint = '/auth/verify-otp/';
+  static const String refreshTokenEndpoint = '/auth/refresh/';
+  static const String logoutEndpoint = '/auth/logout/';
+  
   // Storage Keys
   static const String authTokenKey = 'auth_token';
+  static const String refreshTokenKey = 'refresh_token';  // ADDED
   static const String userIdKey = 'user_id';
   static const String riderDataKey = 'rider_data';
   static const String campaignDataKey = 'campaign_data';
@@ -25,6 +35,12 @@ class AppConstants {
   static const String earningsBox = 'earnings_box';
   static const String verificationBox = 'verification_box';
   static const String offlineQueueBox = 'offline_queue_box';
+  
+  // OTP Configuration - UPDATED FOR KUDISMS
+  static const int otpLength = 4;  // Changed from 6 to 4
+  static const Duration otpExpirationTime = Duration(minutes: 5);
+  static const Duration resendCooldown = Duration(seconds: 60);
+  static const int maxOtpAttempts = 2;  // Kudisms allows 2 attempts
   
   // Location Tracking
   static const int locationUpdateIntervalSeconds = 30;
@@ -86,6 +102,14 @@ class AppConstants {
   static const String defaultLanguage = 'en';
   static const String pidginLanguage = 'pcm'; // Pidgin English
   
+  // Valid Nigerian mobile prefixes - UPDATED
+  static const List<String> validNigerianPrefixes = [
+    '803', '806', '813', '814', '816', '903', '906', // MTN
+    '802', '808', '812', '701', '902', '904', '907', '912', // Airtel
+    '805', '807', '815', '811', '905', // Glo
+    '809', '818', '817', '908', '909', // 9mobile
+  ];
+  
   // Lagos coordinates (default center)
   static const double lagosLatitude = 6.5244;
   static const double lagosLongitude = 3.3792;
@@ -104,10 +128,17 @@ class AppConstants {
   static const int maxLocationUpdatesPerMinute = 4;
   
   // Debug
-  static const bool enableDebugLogs = false;
+  static const bool enableDebugLogs = true;  // Enable for testing
   static const bool enablePerformanceLogging = true;
 
   // Api Keys
   static const String termiiApiKey = 'sOWdHJYT6XAvCrRx0Fj1E8fizpBwPoGm3lt4hbSQnU7uNeIKaqLkg5DMV2yZ9c';
   static const String googleMapsApiKey = 'AIzaSyDFFuBAimEje5haiQHWPZcmvwdzWUKhfkM';
+  
+  // Health Check
+  static String get healthCheckUrl => '$baseUrl/health/';
+  
+  // Environment Detection
+  static bool get isDevelopment => baseUrl.contains('localhost') || baseUrl.contains('127.0.0.1');
+  static bool get isProduction => baseUrl.contains('bold-sun-8647.fly.dev');
 }

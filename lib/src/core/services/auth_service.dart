@@ -2,24 +2,29 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:dio/dio.dart';
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import '../models/rider.dart';
 import '../constants/app_constants.dart';
 import 'api_service.dart';
-import 'storage_service.dart';
+import '../storage/hive_service.dart'; // Updated import
 
 class AuthResult {
   final bool success;
   final String? token;
+  final String? refreshToken; // Added refresh token
   final Rider? rider;
   final String? error;
   final String? errorCode;
+  final bool isNewUser; // Added to track new registrations
 
   const AuthResult({
     required this.success,
     this.token,
+    this.refreshToken,
     this.rider,
     this.error,
     this.errorCode,
+    this.isNewUser = false,
   });
 }
 
@@ -39,12 +44,11 @@ class OTPResult {
 
 class AuthService {
   final ApiService _apiService = ApiService();
-  final StorageService _storage = StorageService();
   
-  // OTP cache for validation
+  // OTP cache for local validation (backup)
   final Map<String, Map<String, dynamic>> _otpCache = {};
   
-  /// Send OTP using Kudisms SMS service
+  /// Send OTP using Kudisms SMS service via backend
   Future<OTPResult> sendOTP(String phoneNumber) async {
     try {
       // Format phone number for Nigerian context
@@ -54,32 +58,36 @@ class AuthService {
       if (!isValidNigerianPhone(formattedPhone)) {
         return OTPResult(
           success: false,
-          error: 'Please enter a valid Nigerian phone number',
+          error: 'Please enter a valid Nigerian phone number (e.g., 08031234567)',
           errorCode: 'INVALID_PHONE',
         );
       }
 
-      // Generate 6-digit OTP
-      final otp = _generateOTP();
-      final expiresAt = DateTime.now().add(Duration(minutes: 5));
-      
+      if (kDebugMode) {
+        print('📱 Sending OTP to: $formattedPhone');
+      }
+
       // Send OTP via backend (which uses Kudisms)
-      final response = await _apiService.post('/auth/send-otp/', data: {
+      final response = await _apiService.post(AppConstants.sendOtpEndpoint, data: {
         'phone_number': formattedPhone,
-        'otp': otp, // Backend will use this specific OTP
       });
 
       if (response.statusCode == 200) {
-        // Cache OTP locally for validation (backup)
+        final data = response.data;
+        
+        if (kDebugMode) {
+          print('✅ OTP sent successfully: $data');
+        }
+
+        // Cache phone for validation (don't cache actual OTP for security)
         _otpCache[formattedPhone] = {
-          'otp': otp,
-          'expires_at': expiresAt.toIso8601String(),
+          'sent_at': DateTime.now().toIso8601String(),
           'attempts': 0,
         };
 
         return OTPResult(
           success: true,
-          expiresInMinutes: 5,
+          expiresInMinutes: data['expires_in_minutes'] ?? 5,
         );
       } else {
         return OTPResult(
@@ -88,9 +96,12 @@ class AuthService {
           errorCode: 'SEND_FAILED',
         );
       }
-    } on DioException catch (e) {
+    } on ApiException catch (e) {
       return _handleOTPError(e);
     } catch (e) {
+      if (kDebugMode) {
+        print('❌ Send OTP error: $e');
+      }
       return OTPResult(
         success: false,
         error: 'Failed to send verification code: $e',
@@ -105,25 +116,16 @@ class AuthService {
       final formattedPhone = _formatPhoneNumber(phoneNumber);
       
       // Check if we can resend (rate limiting)
-      final lastSent = await _storage.getString('last_otp_sent_$formattedPhone');
-      if (lastSent != null) {
-        final lastSentTime = DateTime.parse(lastSent);
-        final timeDiff = DateTime.now().difference(lastSentTime).inSeconds;
-        
-        if (timeDiff < 60) { // 1 minute rate limit
-          return OTPResult(
-            success: false,
-            error: 'Please wait ${60 - timeDiff} seconds before requesting again',
-            errorCode: 'RATE_LIMITED',
-          );
-        }
+      if (HiveService.isOTPRateLimited(formattedPhone)) {
+        return OTPResult(
+          success: false,
+          error: 'Please wait 60 seconds before requesting again',
+          errorCode: 'RATE_LIMITED',
+        );
       }
 
       // Store timestamp for rate limiting
-      await _storage.setString(
-        'last_otp_sent_$formattedPhone',
-        DateTime.now().toIso8601String(),
-      );
+      await HiveService.setOTPRateLimit(formattedPhone);
 
       return await sendOTP(phoneNumber);
     } catch (e) {
@@ -140,33 +142,26 @@ class AuthService {
     try {
       final formattedPhone = _formatPhoneNumber(phoneNumber);
       
-      // Validate OTP format
-      if (otp.length != 6 || !RegExp(r'^\d{6}$').hasMatch(otp)) {
+      // Validate OTP format (4 digits for Kudisms)
+      if (otp.length != AppConstants.otpLength || !RegExp(r'^\d{4}$').hasMatch(otp)) {
         return AuthResult(
           success: false,
-          error: 'Please enter a valid 6-digit code',
+          error: 'Please enter a valid ${AppConstants.otpLength}-digit code',
           errorCode: 'INVALID_OTP_FORMAT',
         );
       }
 
-      // Check local cache first (for immediate validation)
+      if (kDebugMode) {
+        print('🔐 Verifying OTP: $otp for $formattedPhone');
+      }
+
+      // Check local cache for attempt limiting
       final cachedOTP = _otpCache[formattedPhone];
       if (cachedOTP != null) {
-        final expiresAt = DateTime.parse(cachedOTP['expires_at']);
         final attempts = cachedOTP['attempts'] as int;
         
-        // Check if expired
-        if (DateTime.now().isAfter(expiresAt)) {
-          _otpCache.remove(formattedPhone);
-          return AuthResult(
-            success: false,
-            error: 'Verification code has expired. Request a new one.',
-            errorCode: 'OTP_EXPIRED',
-          );
-        }
-        
-        // Check attempt limit
-        if (attempts >= 3) {
+        // Check attempt limit (Kudisms allows 2 attempts)
+        if (attempts >= AppConstants.maxOtpAttempts) {
           _otpCache.remove(formattedPhone);
           return AuthResult(
             success: false,
@@ -180,7 +175,7 @@ class AuthService {
       }
 
       // Verify with backend
-      final response = await _apiService.post('/auth/verify-otp/', data: {
+      final response = await _apiService.post(AppConstants.verifyOtpEndpoint, data: {
         'phone_number': formattedPhone,
         'otp': otp,
         'device_info': await _getDeviceInfo(),
@@ -189,17 +184,28 @@ class AuthService {
       if (response.statusCode == 200) {
         final data = response.data;
         
+        if (kDebugMode) {
+          print('✅ OTP verified successfully: $data');
+        }
+        
         // Clear OTP cache on success
         _otpCache.remove(formattedPhone);
         
-        // Store auth token
-        await _storage.setString('auth_token', data['access_token']);
-        await _storage.setString('refresh_token', data['refresh_token']);
+        // Store auth tokens
+        await HiveService.saveAuthToken(data['access_token']);
+        await HiveService.saveRefreshToken(data['refresh_token']);
+        
+        // Store rider data
+        if (data['rider'] != null) {
+          await HiveService.saveRiderData(jsonEncode(data['rider']));
+        }
         
         return AuthResult(
           success: true,
           token: data['access_token'],
-          rider: Rider.fromJson(data['rider']),
+          refreshToken: data['refresh_token'],
+          rider: data['rider'] != null ? Rider.fromJson(data['rider']) : null,
+          isNewUser: data['is_new_user'] ?? false,
         );
       } else {
         return AuthResult(
@@ -208,9 +214,12 @@ class AuthService {
           errorCode: 'INVALID_OTP',
         );
       }
-    } on DioException catch (e) {
+    } on ApiException catch (e) {
       return _handleAuthError(e);
     } catch (e) {
+      if (kDebugMode) {
+        print('❌ Verify OTP error: $e');
+      }
       return AuthResult(
         success: false,
         error: 'Verification failed: $e',
@@ -222,7 +231,7 @@ class AuthService {
   /// Refresh authentication token
   Future<AuthResult> refreshToken() async {
     try {
-      final refreshToken = await _storage.getString('refresh_token');
+      final refreshToken = HiveService.getRefreshToken();
       
       if (refreshToken == null) {
         return AuthResult(
@@ -232,7 +241,11 @@ class AuthService {
         );
       }
 
-      final response = await _apiService.post('/auth/refresh/', data: {
+      if (kDebugMode) {
+        print('🔄 Refreshing token...');
+      }
+
+      final response = await _apiService.post(AppConstants.refreshTokenEndpoint, data: {
         'refresh_token': refreshToken,
         'device_info': await _getDeviceInfo(),
       });
@@ -241,14 +254,24 @@ class AuthService {
         final data = response.data;
         
         // Update stored tokens
-        await _storage.setString('auth_token', data['access_token']);
+        await HiveService.saveAuthToken(data['access_token']);
         if (data['refresh_token'] != null) {
-          await _storage.setString('refresh_token', data['refresh_token']);
+          await HiveService.saveRefreshToken(data['refresh_token']);
+        }
+        
+        // Update rider data if provided
+        if (data['rider'] != null) {
+          await HiveService.saveRiderData(jsonEncode(data['rider']));
+        }
+        
+        if (kDebugMode) {
+          print('✅ Token refreshed successfully');
         }
         
         return AuthResult(
           success: true,
           token: data['access_token'],
+          refreshToken: data['refresh_token'],
           rider: data['rider'] != null ? Rider.fromJson(data['rider']) : null,
         );
       } else {
@@ -259,6 +282,9 @@ class AuthService {
         );
       }
     } catch (e) {
+      if (kDebugMode) {
+        print('❌ Token refresh error: $e');
+      }
       return AuthResult(
         success: false,
         error: 'Token refresh failed: $e',
@@ -270,31 +296,61 @@ class AuthService {
   /// Logout user and clear stored data
   Future<void> logout() async {
     try {
+      // Get refresh token for logout
+      final refreshToken = HiveService.getRefreshToken();
+      
       // Notify backend about logout
-      await _apiService.post('/auth/logout/', data: {});
+      if (refreshToken != null) {
+        await _apiService.post(AppConstants.logoutEndpoint, data: {
+          'refresh_token': refreshToken,
+        });
+      }
+      
+      if (kDebugMode) {
+        print('✅ Logout API call successful');
+      }
     } catch (e) {
       // Ignore logout errors - clear local data anyway
-      print('Logout API call failed: $e');
+      if (kDebugMode) {
+        print('⚠️ Logout API call failed: $e');
+      }
     } finally {
       // Clear all stored auth data
-      await _storage.remove('auth_token');
-      await _storage.remove('refresh_token');
-      await _storage.remove('rider_data');
+      await HiveService.clearAuthData();
       
       // Clear OTP cache
       _otpCache.clear();
+      
+      if (kDebugMode) {
+        print('🧹 Auth data cleared locally');
+      }
     }
   }
 
   /// Check if user is currently authenticated
   Future<bool> isAuthenticated() async {
-    final token = await _storage.getString('auth_token');
+    final token = HiveService.getAuthToken();
     return token != null && token.isNotEmpty;
   }
 
   /// Get stored authentication token
   Future<String?> getAuthToken() async {
-    return await _storage.getString('auth_token');
+    return HiveService.getAuthToken();
+  }
+
+  /// Get stored rider data
+  Future<Rider?> getStoredRider() async {
+    final riderJson = HiveService.getRiderData();
+    if (riderJson != null) {
+      try {
+        return Rider.fromJson(jsonDecode(riderJson));
+      } catch (e) {
+        if (kDebugMode) {
+          print('❌ Error parsing stored rider data: $e');
+        }
+      }
+    }
+    return null;
   }
 
   /// Format phone number for Nigerian context
@@ -343,45 +399,32 @@ class AuthService {
   bool _isValidMobilePrefix(String number) {
     if (number.length != 10) return false;
     
-    // Valid Nigerian mobile prefixes
-    final validPrefixes = [
-      '803', '806', '813', '814', '816', '903', '906', // MTN
-      '802', '808', '812', '701', '902', '904', '907', '912', // Airtel
-      '805', '807', '815', '811', '905', // Glo
-      '809', '818', '817', '908', '909', // 9mobile
-    ];
-    
     final prefix = number.substring(0, 3);
-    return validPrefixes.contains(prefix);
-  }
-
-  /// Generate secure 6-digit OTP
-  String _generateOTP() {
-    final random = Random.secure();
-    return (100000 + random.nextInt(900000)).toString();
+    return AppConstants.validNigerianPrefixes.contains(prefix);
   }
 
   /// Get device information for security
   Future<Map<String, dynamic>> _getDeviceInfo() async {
-    // This would typically use device_info_plus package
+    // Basic device info - you can enhance this with device_info_plus
     return {
       'platform': 'flutter',
+      'app_version': AppConstants.appVersion,
       'timestamp': DateTime.now().toIso8601String(),
       // Add more device info as needed for security
     };
   }
 
   /// Handle OTP-related errors
-  OTPResult _handleOTPError(DioException e) {
-    if (e.response?.statusCode == 400) {
-      final errorData = e.response?.data;
-      final errorCode = errorData['code'];
+  OTPResult _handleOTPError(ApiException e) {
+    if (e.statusCode == 400) {
+      final errorData = e.response;
+      final errorCode = errorData is Map ? errorData['code'] : null;
       
       switch (errorCode) {
         case 'INVALID_PHONE':
           return OTPResult(
             success: false,
-            error: 'Please enter a valid phone number',
+            error: 'Please enter a valid Nigerian phone number',
             errorCode: errorCode,
           );
         case 'RATE_LIMITED':
@@ -397,13 +440,14 @@ class AuthService {
             errorCode: errorCode,
           );
         default:
+          final message = errorData is Map ? errorData['message'] : null;
           return OTPResult(
             success: false,
-            error: errorData['message'] ?? 'Failed to send verification code',
+            error: message ?? 'Failed to send verification code',
             errorCode: errorCode,
           );
       }
-    } else if (e.response?.statusCode == 500) {
+    } else if (e.statusCode == 500) {
       return OTPResult(
         success: false,
         error: 'Server error. Please try again later.',
@@ -419,16 +463,21 @@ class AuthService {
   }
 
   /// Handle authentication-related errors
-  AuthResult _handleAuthError(DioException e) {
-    if (e.response?.statusCode == 400) {
-      final errorData = e.response?.data;
-      final errorCode = errorData['code'];
+  AuthResult _handleAuthError(ApiException e) {
+    if (e.statusCode == 400) {
+      final errorData = e.response;
+      final errorCode = errorData is Map ? errorData['code'] : null;
       
       switch (errorCode) {
         case 'INVALID_OTP':
+          final attemptsRemaining = errorData is Map ? errorData['attempts_remaining'] : null;
+          String message = 'Invalid verification code. Please try again.';
+          if (attemptsRemaining != null) {
+            message = 'Invalid verification code. $attemptsRemaining attempts remaining.';
+          }
           return AuthResult(
             success: false,
-            error: 'Invalid verification code. Please try again.',
+            error: message,
             errorCode: errorCode,
           );
         case 'OTP_EXPIRED':
@@ -444,9 +493,10 @@ class AuthService {
             errorCode: errorCode,
           );
         default:
+          final message = errorData is Map ? errorData['message'] : null;
           return AuthResult(
             success: false,
-            error: errorData['message'] ?? 'Authentication failed',
+            error: message ?? 'Authentication failed',
             errorCode: errorCode,
           );
       }

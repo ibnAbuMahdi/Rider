@@ -348,4 +348,67 @@ class HiveService {
       'settings': _settingsBox.length,
     };
   }
+
+ // Enhanced Auth token methods for Kudisms integration
+  static Future<void> saveRefreshToken(String token) async {
+    await _settingsBox.put('refresh_token', token);
+  }
+
+  static String? getRefreshToken() {
+    return _settingsBox.get('refresh_token') as String?;
+  }
+
+  static Future<void> clearRefreshToken() async {
+    await _settingsBox.delete('refresh_token');
+  }
+
+  // Generic string storage methods for auth service compatibility
+  static Future<void> setString(String key, String value) async {
+    await _settingsBox.put(key, value);
+  }
+
+  static Future<String?> getString(String key) async {
+    return _settingsBox.get(key) as String?;
+  }
+
+  static Future<void> remove(String key) async {
+    await _settingsBox.delete(key);
+  }
+
+  // Enhanced rider data methods
+  static Future<void> saveRiderData(String riderJson) async {
+    await _settingsBox.put(AppConstants.riderDataKey, riderJson);
+  }
+
+  static String? getRiderData() {
+    return _settingsBox.get(AppConstants.riderDataKey) as String?;
+  }
+
+  static Future<void> clearRiderData() async {
+    await _settingsBox.delete(AppConstants.riderDataKey);
+  }
+
+  // Complete auth cleanup method
+  static Future<void> clearAuthData() async {
+    await clearAuthToken();
+    await clearRefreshToken();
+    await clearRiderData();
+    await clearRider();
+  }
+
+  // OTP rate limiting methods
+  static Future<void> setOTPRateLimit(String phoneNumber) async {
+    await _settingsBox.put('otp_rate_limit_$phoneNumber', DateTime.now().toIso8601String());
+  }
+
+  static bool isOTPRateLimited(String phoneNumber) {
+    final lastSent = _settingsBox.get('otp_rate_limit_$phoneNumber') as String?;
+    if (lastSent != null) {
+      final lastSentTime = DateTime.parse(lastSent);
+      final timeDiff = DateTime.now().difference(lastSentTime).inSeconds;
+      return timeDiff < 60; // 1 minute rate limit
+    }
+    return false;
+  }
+
 }

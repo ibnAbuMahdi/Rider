@@ -1,0 +1,164 @@
+Analyzing Rider...                                              
+
+   info - Use 'const' with the constructor to improve performance - lib\main.dart:20:5 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\main.dart:21:14 - prefer_const_constructors
+warning - Unused import: 'package:go_router/go_router.dart' - lib\src\app.dart:3:8 - unused_import
+warning - The value of the local variable 'authState' isn't used - lib\src\app.dart:18:11 - unused_local_variable
+   info - 'textScaleFactor' is deprecated and shouldn't be used. Use textScaler instead. Use of textScaleFactor was deprecated in preparation for the upcoming nonlinear text scaling support. This feature was deprecated after v3.12.0-2.0.pre - lib\src\app.dart:70:19 - deprecated_member_use
+   info - 'textScaleFactor' is deprecated and shouldn't be used. Use textScaler instead. Use of textScaleFactor was deprecated in preparation for the upcoming nonlinear text scaling support. This feature was deprecated after v3.12.0-2.0.pre - lib\src\app.dart:70:59 - deprecated_member_use
+   info - The import of 'package:flutter/services.dart' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/foundation.dart' - lib\src\core\security\app_security.dart:2:8 - unnecessary_import
+warning - Unused import: 'package:secure_application/secure_application.dart' - lib\src\core\security\app_security.dart:4:8 - unused_import
+warning - Unused import: 'dart:convert' - lib\src\core\services\api_service.dart:1:8 - unused_import
+warning - This default clause is covered by the previous cases - lib\src\core\services\api_service.dart:277:7 - unreachable_switch_default
+warning - Unused import: 'dart:convert' - lib\src\core\services\auth_service.dart:1:8 - unused_import
+warning - Unused import: '../constants/app_constants.dart' - lib\src\core\services\auth_service.dart:4:8 - unused_import
+   info - Use 'const' with the constructor to improve performance - lib\src\core\services\auth_service.dart:65:16 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\src\core\services\auth_service.dart:78:14 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\src\core\services\auth_service.dart:103:16 - prefer_const_constructors
+warning - Unused import: '../constants/app_constants.dart' - lib\src\core\services\campaign_service.dart:2:8 - unused_import
+   info - Don't invoke 'print' in production code - lib\src\core\services\crash_reporting.dart:13:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\src\core\services\crash_reporting.dart:15:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\src\core\services\crash_reporting.dart:29:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\src\core\services\crash_reporting.dart:46:7 - avoid_print
+warning - Unused import: 'package:dio/dio.dart' - lib\src\core\services\earnings_service.dart:1:8 - unused_import
+warning - Unused import: 'package:dio/dio.dart' - lib\src\core\services\location_api_service.dart:1:8 - unused_import
+   info - Uses 'await' on an instance of 'List<LocationRecord>', which is not a subtype of 'Future' - lib\src\core\services\location_api_service.dart:143:33 - await_only_futures
+   info - Use 'const' with the constructor to improve performance - lib\src\core\services\location_service.dart:229:7 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\src\core\services\verification_service.dart:99:16 - prefer_const_constructors
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\core\theme\app_colors.dart:117:18 - deprecated_member_use
+   info - 'background' is deprecated and shouldn't be used. Use surface instead. This feature was deprecated after v3.18.0-0.1.pre - lib\src\core\theme\app_theme.dart:21:9 - deprecated_member_use
+   info - 'onBackground' is deprecated and shouldn't be used. Use onSurface instead. This feature was deprecated after v3.18.0-0.1.pre - lib\src\core\theme\app_theme.dart:26:9 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\core\theme\app_theme.dart:75:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\core\theme\app_theme.dart:88:42 - deprecated_member_use
+   info - Use 'const' with the constructor to improve performance - lib\src\core\utils\connectivity_wrapper.dart:44:24 - prefer_const_constructors
+   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\src\core\utils\connectivity_wrapper.dart:45:29 - prefer_const_literals_to_create_immutables
+warning - Unused import: '../../../core/constants/app_constants.dart' - lib\src\features\auth\screens\phone_input_screen.dart:7:8 - unused_import
+warning - Unused import: '../../../core/services/auth_service.dart' - lib\src\features\auth\screens\phone_input_screen.dart:9:8 - unused_import
+warning - Unused import: 'package:go_router/go_router.dart' - lib\src\features\campaigns\screens\campaign_list_screen.dart:3:8 - unused_import
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\campaigns\screens\campaign_list_screen.dart:201:46 - deprecated_member_use
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\src\features\campaigns\screens\campaign_list_screen.dart:303:34 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\src\features\campaigns\screens\campaign_list_screen.dart:304:42 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\src\features\campaigns\screens\campaign_list_screen.dart:350:34 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\src\features\campaigns\screens\campaign_list_screen.dart:351:42 - use_build_context_synchronously
+   info - Use a 'SizedBox' to add whitespace to a layout - lib\src\features\campaigns\widgets\campaign_card.dart:64:14 - sized_box_for_whitespace
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\campaigns\widgets\campaign_card.dart:93:44 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\campaigns\widgets\campaign_card.dart:99:46 - deprecated_member_use
+   info - Use 'const' with the constructor to improve performance - lib\src\features\campaigns\widgets\campaign_card.dart:193:18 - prefer_const_constructors
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\campaigns\widgets\campaign_card.dart:219:54 - deprecated_member_use
+   info - Use 'const' with the constructor to improve performance - lib\src\features\campaigns\widgets\campaign_card.dart:223:11 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\src\features\campaigns\widgets\campaign_card.dart:232:22 - prefer_const_constructors
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\campaigns\widgets\campaign_card.dart:252:57 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\campaigns\widgets\current_campaign_card.dart:25:31 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\campaigns\widgets\current_campaign_card.dart:26:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\campaigns\widgets\current_campaign_card.dart:32:53 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\campaigns\widgets\current_campaign_card.dart:41:40 - deprecated_member_use
+   info - Use 'const' with the constructor to improve performance - lib\src\features\campaigns\widgets\current_campaign_card.dart:52:26 - prefer_const_constructors
+   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\src\features\campaigns\widgets\current_campaign_card.dart:54:31 - prefer_const_literals_to_create_immutables
+   info - Use 'const' with the constructor to improve performance - lib\src\features\campaigns\widgets\current_campaign_card.dart:76:21 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\src\features\campaigns\widgets\current_campaign_card.dart:78:30 - prefer_const_constructors
+   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\src\features\campaigns\widgets\current_campaign_card.dart:79:35 - prefer_const_literals_to_create_immutables
+   info - Use 'const' with the constructor to improve performance - lib\src\features\campaigns\widgets\current_campaign_card.dart:198:29 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\src\features\campaigns\widgets\current_campaign_card.dart:200:38 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\src\features\campaigns\widgets\current_campaign_card.dart:208:38 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\src\features\campaigns\widgets\current_campaign_card.dart:221:29 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\src\features\campaigns\widgets\current_campaign_card.dart:223:38 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\src\features\campaigns\widgets\current_campaign_card.dart:230:38 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\src\features\campaigns\widgets\current_campaign_card.dart:272:24 - prefer_const_constructors
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\earnings\screens\earnings_screen.dart:164:44 - deprecated_member_use
+   info - Use 'const' with the constructor to improve performance - lib\src\features\earnings\screens\earnings_screen.dart:167:11 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\src\features\earnings\screens\earnings_screen.dart:169:20 - prefer_const_constructors
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\earnings\screens\earnings_screen.dart:180:46 - deprecated_member_use
+   info - Use 'const' with the constructor to improve performance - lib\src\features\earnings\screens\earnings_screen.dart:299:20 - prefer_const_constructors
+warning - Unused import: '../../../core/theme/app_colors.dart' - lib\src\features\earnings\widgets\earning_item_tile.dart:2:8 - unused_import
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\earnings\widgets\earning_item_tile.dart:24:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\earnings\widgets\earning_item_tile.dart:37:38 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\earnings\widgets\earning_item_tile.dart:68:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\earnings\widgets\earnings_summary_card.dart:23:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\earnings\widgets\earnings_summary_card.dart:35:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\earnings\widgets\earnings_summary_card.dart:78:29 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\earnings\widgets\earnings_summary_card.dart:87:35 - deprecated_member_use
+warning - The value of the field '_mapController' isn't used - lib\src\features\home\screens\home_screen.dart:21:30 - unused_field
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\home\screens\home_screen.dart:92:40 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\home\screens\home_screen.dart:171:45 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\home\screens\home_screen.dart:226:69 - deprecated_member_use
+   info - Use 'const' with the constructor to improve performance - lib\src\features\home\screens\home_screen.dart:239:27 - prefer_const_constructors
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\home\screens\home_screen.dart:250:51 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\home\screens\home_screen.dart:298:61 - deprecated_member_use
+   info - Use 'const' with the constructor to improve performance - lib\src\features\home\screens\home_screen.dart:400:18 - prefer_const_constructors
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\home\screens\home_screen.dart:445:46 - deprecated_member_use
+   info - Use 'const' with the constructor to improve performance - lib\src\features\home\screens\home_screen.dart:448:13 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\src\features\home\screens\home_screen.dart:450:22 - prefer_const_constructors
+   info - The type of the right operand ('String') isn't a subtype or a supertype of the left operand ('CampaignStatus') - lib\src\features\home\screens\home_screen.dart:469:48 - unrelated_type_equality_checks
+   info - Use 'const' with the constructor to improve performance - lib\src\features\home\screens\home_screen.dart:479:23 - prefer_const_constructors
+  error - Too many positional arguments: 0 expected, but 1 found - lib\src\features\home\screens\home_screen.dart:599:61 - extra_positional_arguments
+warning - The value of the local variable 'currentPosition' isn't used - lib\src\features\location\widgets\location_status_widget.dart:18:11 - unused_local_variable
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\location\widgets\location_status_widget.dart:37:34 - deprecated_member_use
+warning - The value of the local variable 'campaignId' isn't used - lib\src\features\location\widgets\location_status_widget.dart:78:11 - unused_local_variable
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\location\widgets\location_status_widget.dart:84:34 - deprecated_member_use
+warning - Unused import: '../../shared/widgets/stika_logo.dart' - lib\src\features\onboarding\screens\onboarding_screen.dart:9:8 - unused_import
+   info - Use 'const' with the constructor to improve performance - lib\src\features\onboarding\screens\onboarding_screen.dart:24:5 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\src\features\onboarding\screens\onboarding_screen.dart:31:5 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\src\features\onboarding\screens\onboarding_screen.dart:38:5 - prefer_const_constructors
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\onboarding\screens\onboarding_screen.dart:134:33 - deprecated_member_use
+warning - The member 'state' can only be used within 'package:state_notifier/state_notifier.dart' or a test - lib\src\features\onboarding\screens\onboarding_screen.dart:216:41 - invalid_use_of_visible_for_testing_member
+warning - The member 'state' can only be used within instance members of subclasses of 'package:state_notifier/state_notifier.dart' - lib\src\features\onboarding\screens\onboarding_screen.dart:216:41 - invalid_use_of_protected_member
+   info - Use 'const' with the constructor to improve performance - lib\src\features\profile\screens\profile_screen.dart:20:15 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\src\features\profile\screens\profile_screen.dart:22:24 - prefer_const_constructors
+   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\src\features\profile\screens\profile_screen.dart:23:29 - prefer_const_literals_to_create_immutables
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\profile\screens\profile_screen.dart:48:54 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\shared\widgets\stika_logo.dart:32:42 - deprecated_member_use
+   info - Use 'const' with the constructor to improve performance - lib\src\features\verification\screens\verification_screen.dart:148:7 - prefer_const_constructors
+   info - 'WillPopScope' is deprecated and shouldn't be used. Use PopScope instead. The Android predictive back feature will not work with WillPopScope. This feature was deprecated after v3.12.0-1.0.pre - lib\src\features\verification\screens\verification_screen.dart:162:12 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\verification\screens\verification_screen.dart:239:28 - deprecated_member_use
+   info - Use 'const' with the constructor to improve performance - lib\src\features\verification\screens\verification_screen.dart:253:22 - prefer_const_constructors
+   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\src\features\verification\screens\verification_screen.dart:255:27 - prefer_const_literals_to_create_immutables
+   info - Use 'const' with the constructor to improve performance - lib\src\features\verification\screens\verification_screen.dart:286:25 - prefer_const_constructors
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\verification\screens\verification_screen.dart:307:28 - deprecated_member_use
+   info - Use 'const' with the constructor to improve performance - lib\src\features\verification\screens\verification_screen.dart:522:16 - prefer_const_constructors
+   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\src\features\verification\screens\verification_screen.dart:523:21 - prefer_const_literals_to_create_immutables
+   info - Use 'const' with the constructor to improve performance - lib\src\features\verification\widgets\countdown_timer_widget.dart:66:11 - prefer_const_constructors
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\verification\widgets\verification_guide_overlay.dart:20:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\features\verification\widgets\verification_guide_overlay.dart:127:35 - deprecated_member_use
+warning - Unused import: 'package:flutter/services.dart' - lib\src\security\app_security.dart:2:8 - unused_import
+   info - Unnecessary braces in a string interpolation - lib\src\security\app_security.dart:115:35 - unnecessary_brace_in_string_interps
+   info - Unnecessary braces in a string interpolation - lib\src\security\app_security.dart:116:17 - unnecessary_brace_in_string_interps
+   info - Unnecessary braces in a string interpolation - lib\src\security\app_security.dart:116:33 - unnecessary_brace_in_string_interps
+   info - Unnecessary braces in a string interpolation - lib\src\security\app_security.dart:132:30 - unnecessary_brace_in_string_interps
+   info - Unnecessary braces in a string interpolation - lib\src\security\app_security.dart:133:17 - unnecessary_brace_in_string_interps
+   info - Unnecessary braces in a string interpolation - lib\src\security\app_security.dart:133:32 - unnecessary_brace_in_string_interps
+warning - Unused import: '../services/sms_service.dart' - lib\src\services\notification_service.dart:6:8 - unused_import
+   info - 'canLaunch' is deprecated and shouldn't be used. Use canLaunchUrl instead - lib\src\services\whatsapp_service.dart:22:17 - deprecated_member_use
+   info - 'launch' is deprecated and shouldn't be used. Use launchUrl instead - lib\src\services\whatsapp_service.dart:23:15 - deprecated_member_use
+   info - Use 'const' for final variables initialized to a constant value - lib\src\services\whatsapp_service.dart:87:7 - prefer_const_declarations
+   info - Use 'const' for final variables initialized to a constant value - lib\src\services\whatsapp_service.dart:98:7 - prefer_const_declarations
+   info - 'canLaunch' is deprecated and shouldn't be used. Use canLaunchUrl instead - lib\src\services\whatsapp_service.dart:114:17 - deprecated_member_use
+   info - 'launch' is deprecated and shouldn't be used. Use launchUrl instead - lib\src\services\whatsapp_service.dart:115:15 - deprecated_member_use
+   info - 'canLaunch' is deprecated and shouldn't be used. Use canLaunchUrl instead - lib\src\services\whatsapp_service.dart:132:17 - deprecated_member_use
+   info - 'launch' is deprecated and shouldn't be used. Use launchUrl instead - lib\src\services\whatsapp_service.dart:133:15 - deprecated_member_use
+   info - 'canLaunch' is deprecated and shouldn't be used. Use canLaunchUrl instead - lib\src\services\whatsapp_service.dart:161:17 - deprecated_member_use
+   info - 'launch' is deprecated and shouldn't be used. Use launchUrl instead - lib\src\services\whatsapp_service.dart:162:15 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\src\shared\widgets\stika_logo.dart:32:42 - deprecated_member_use
+   info - The constant name 'BOXES' isn't a lowerCamelCase identifier - lib\src\storage\offline_storage.dart:14:16 - constant_identifier_names
+  error - The getter 'synced' isn't defined for the type 'VerificationRequest' - lib\src\storage\offline_storage.dart:69:51 - undefined_getter
+  error - The method 'submitVerification' isn't defined for the type 'ApiService' - lib\src\storage\offline_storage.dart:75:43 - undefined_method
+  error - The setter 'synced' isn't defined for the type 'VerificationRequest' - lib\src\storage\offline_storage.dart:77:26 - undefined_setter
+  error - The method 'save' isn't defined for the type 'VerificationRequest' - lib\src\storage\offline_storage.dart:78:32 - undefined_method
+  error - The getter 'synced' isn't defined for the type 'LocationRecord' - lib\src\storage\offline_storage.dart:93:51 - undefined_getter
+  error - The method 'syncLocationBatch' isn't defined for the type 'ApiService' - lib\src\storage\offline_storage.dart:103:43 - undefined_method
+  error - The setter 'synced' isn't defined for the type 'LocationRecord' - lib\src\storage\offline_storage.dart:106:24 - undefined_setter
+  error - The method 'save' isn't defined for the type 'LocationRecord' - lib\src\storage\offline_storage.dart:107:30 - undefined_method
+  error - The getter 'synced' isn't defined for the type 'Earning' - lib\src\storage\offline_storage.dart:123:51 - undefined_getter
+  error - The method 'syncEarning' isn't defined for the type 'ApiService' - lib\src\storage\offline_storage.dart:129:43 - undefined_method
+  error - The setter 'synced' isn't defined for the type 'Earning' - lib\src\storage\offline_storage.dart:131:21 - undefined_setter
+  error - The method 'syncSMSLog' isn't defined for the type 'ApiService' - lib\src\storage\offline_storage.dart:153:43 - undefined_method
+  error - The method 'submitVerification' isn't defined for the type 'ApiService' - lib\src\storage\offline_storage.dart:192:26 - undefined_method
+  error - The method 'syncLocationBatch' isn't defined for the type 'ApiService' - lib\src\storage\offline_storage.dart:195:26 - undefined_method
+  error - The method 'syncEarning' isn't defined for the type 'ApiService' - lib\src\storage\offline_storage.dart:198:26 - undefined_method
+   info - Use 'const' with the constructor to improve performance - lib\src\storage\offline_storage.dart:231:50 - prefer_const_constructors
+  error - The getter 'synced' isn't defined for the type 'VerificationRequest' - lib\src\storage\offline_storage.dart:244:27 - undefined_getter
+  error - The getter 'key' isn't defined for the type 'VerificationRequest' - lib\src\storage\offline_storage.dart:250:53 - undefined_getter
+  error - 'OfflineActionAdapter.hashCode' ('bool Function()') isn't a valid override of 'Object.hashCode' ('int Function()') - lib\src\storage\offline_storage.dart:326:12 - invalid_override
+  error - A value of type 'int' can't be returned from the function 'hashCode' because it has a return type of 'bool' - lib\src\storage\offline_storage.dart:326:24 - return_of_invalid_type
+warning - The dev dependency on json_annotation is unnecessary because there is also a normal dependency on that package - pubspec.yaml:105:3 - unnecessary_dev_dependency
+  error - The name 'MyApp' isn't a class - test\widget_test.dart:16:35 - creation_with_non_type
+

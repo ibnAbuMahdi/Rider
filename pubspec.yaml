@@ -1,0 +1,147 @@
+name: stika_rider
+description: Earn money while you ride - Official Stika Rider App
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Core Architecture
+  flutter_riverpod: ^2.4.9
+  riverpod_annotation: ^2.3.3
+  go_router: ^12.1.3
+  
+  # Network & API (Simplified)
+  dio: ^5.4.0
+  http: ^1.1.0  # For SMS service integration
+  connectivity_plus: ^5.0.2
+  internet_connection_checker: ^1.0.0+1
+  
+  # Local Storage
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  flutter_secure_storage: ^9.0.0
+  shared_preferences: ^2.2.2
+  
+  # Maps & Location (Downgraded for stability)
+  google_maps_flutter: ^2.2.8  # More stable version
+  geolocator: ^9.0.2           # Downgraded for compatibility
+  location: ^5.0.3
+  geocoding: ^2.1.1
+  
+  # Camera & Image (Stable versions)
+  camera: ^0.10.0+2            # Stable version
+  image_picker: ^1.0.0         # Compatible version
+  image: ^4.1.3
+  path_provider: ^2.1.1
+  
+  # UI & UX
+  flutter_native_splash: ^2.3.6
+  shimmer: ^3.0.0
+  cached_network_image: ^3.3.0
+  lottie: ^2.7.0
+  flutter_svg: ^2.0.9
+  cupertino_icons: ^1.0.6
+  
+  # Device & Permissions
+  permission_handler: ^11.0.0   # Stable version
+  battery_plus: ^4.0.2
+  device_info_plus: ^9.1.1
+  # package_info_plus: ^4.0.0  # Replaced with AppInfo class
+    # installed_apps: ^1.3.1
+  
+  # Communication (SMS-based, no Firebase)
+  flutter_local_notifications: ^16.3.0
+  url_launcher: ^6.2.1
+  share_plus: ^7.2.1
+  
+  # Background Tasks
+  #workmanager: ^0.5.2
+  
+  # Utils
+  intl: ^0.19.0
+  logger: ^2.0.2+1
+  uuid: ^4.2.1
+  
+  # Security
+  # secure_application: ^3.7.1  # Replaced with AppSecurity class
+  crypto: ^3.0.3
+  
+  # Phone Input
+  intl_phone_field: ^3.2.0
+  country_picker: ^2.0.21
+  
+  # Timer
+  circular_countdown_timer: ^0.2.3
+  
+  # Loading & Progress
+  flutter_spinkit: ^5.2.0
+  
+  # Audio (for notifications)
+  audioplayers: ^5.2.1
+  
+  # JSON annotation (needed for runtime)
+  json_annotation: ^4.8.1
+
+# Dependency overrides for stability
+dependency_overrides:
+  camera_android: ^0.10.0+2
+  geolocator_android: ^4.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  
+  # Code Generation
+  riverpod_generator: ^2.3.9
+  hive_generator: ^2.0.1
+  build_runner: ^2.4.7
+  json_annotation: ^4.8.1
+  json_serializable: ^6.7.1
+  
+  # Linting
+  flutter_lints: ^3.0.1
+  
+  # Launcher Icons
+  flutter_launcher_icons: ^0.13.1
+
+flutter:
+  uses-material-design: true
+  
+  assets:
+    - assets/images/
+    - assets/animations/
+    - assets/sounds/
+    - assets/icons/
+  
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter_18pt-Regular.ttf
+        - asset: assets/fonts/Inter_18pt-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter_18pt-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter_18pt-Bold.ttf
+          weight: 700
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: false
+  image_path: "assets/icons/app_icon.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icons/app_icon_foreground.png"
+
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: assets/images/logo.png
+  android_12:
+    image: assets/images/logo.png
+    color: "#FFFFFF"

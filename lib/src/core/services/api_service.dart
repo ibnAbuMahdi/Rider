@@ -1,0 +1,666 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import '../constants/app_constants.dart';
+import '../storage/hive_service.dart';
+import '../services/auth_service.dart';
+
+class ApiService {
+  late final Dio _dio;
+  static ApiService? _instance;
+  bool _isRefreshing = false;
+  List<RequestOptions> _failedQueue = [];
+
+  ApiService._internal() {
+    _dio = Dio();
+    _setupInterceptors();
+  }
+
+  factory ApiService() {
+    _instance ??= ApiService._internal();
+    return _instance!;
+  }
+
+  static ApiService get instance {
+    _instance ??= ApiService._internal();
+    return _instance!;
+  }
+
+  void _setupInterceptors() {
+    _dio.options = BaseOptions(
+      baseUrl: '${AppConstants.baseUrl}/api/${AppConstants.apiVersion}',
+      connectTimeout: const Duration(seconds: 30),
+      receiveTimeout: const Duration(seconds: 30),
+      sendTimeout: const Duration(seconds: 30),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'StikaRider/${AppConstants.appVersion} (${Platform.operatingSystem})',
+      },
+    );
+
+    // Request interceptor for auth token
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) async {
+          // Get auth token asynchronously
+          final token = await HiveService.getAuthToken();
+          if (token != null && token.isNotEmpty) {
+            options.headers['Authorization'] = 'Bearer $token';
+          }
+          
+          // Add request ID for tracking
+          options.headers['X-Request-ID'] = _generateRequestId();
+          
+          if (kDebugMode) {
+            print('🚀 REQUEST: ${options.method} ${options.path}');
+            print('📝 Headers: ${options.headers}');
+            if (options.data != null) {
+              print('📝 Data: ${options.data}');
+            }
+          }
+          
+          handler.next(options);
+        },
+        onResponse: (response, handler) {
+          if (kDebugMode) {
+            print('✅ RESPONSE: ${response.statusCode} ${response.requestOptions.path}');
+            print('📄 Data: ${response.data}');
+          }
+          handler.next(response);
+        },
+        onError: (error, handler) async {
+          if (kDebugMode) {
+            print('❌ ERROR: ${error.response?.statusCode} ${error.requestOptions.path}');
+            print('📄 Error Data: ${error.response?.data}');
+            print('📄 Error Message: ${error.message}');
+          }
+          
+          // Handle 401 - token expired, try refresh
+          if (error.response?.statusCode == 401) {
+            final refreshResult = await _handleTokenExpiry(error.requestOptions);
+            if (refreshResult != null) {
+              handler.resolve(refreshResult);
+              return;
+            }
+          }
+          
+          handler.next(error);
+        },
+      ),
+    );
+
+    // Retry interceptor for failed requests
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onError: (error, handler) async {
+          if (_shouldRetry(error)) {
+            try {
+              final response = await _retry(error.requestOptions);
+              handler.resolve(response);
+              return;
+            } catch (e) {
+              if (kDebugMode) {
+                print('🔄 RETRY FAILED: $e');
+              }
+            }
+          }
+          handler.next(error);
+        },
+      ),
+    );
+
+    // Logging interceptor (only in debug mode)
+    if (kDebugMode) {
+      _dio.interceptors.add(LogInterceptor(
+        requestBody: true,
+        responseBody: true,
+        requestHeader: false,
+        responseHeader: false,
+        error: true,
+      ));
+    }
+  }
+
+  bool _shouldRetry(DioException error) {
+    // Don't retry authentication errors or client errors (4xx)
+    if (error.response?.statusCode != null) {
+      final statusCode = error.response!.statusCode!;
+      if (statusCode >= 400 && statusCode < 500) {
+        return false;
+      }
+    }
+
+    return error.type == DioExceptionType.connectionTimeout ||
+           error.type == DioExceptionType.receiveTimeout ||
+           error.type == DioExceptionType.sendTimeout ||
+           error.type == DioExceptionType.connectionError ||
+           (error.response?.statusCode != null && 
+            error.response!.statusCode! >= 500);
+  }
+
+  Future<Response> _retry(RequestOptions requestOptions) async {
+    // Wait before retry
+    await Future.delayed(const Duration(seconds: 2));
+    
+    final options = Options(
+      method: requestOptions.method,
+      headers: requestOptions.headers,
+      sendTimeout: requestOptions.sendTimeout,
+      receiveTimeout: requestOptions.receiveTimeout,
+    );
+
+    return _dio.request(
+      requestOptions.path,
+      data: requestOptions.data,
+      queryParameters: requestOptions.queryParameters,
+      options: options,
+    );
+  }
+
+  Future<Response?> _handleTokenExpiry(RequestOptions failedRequest) async {
+    if (_isRefreshing) {
+      // If already refreshing, queue this request
+      _failedQueue.add(failedRequest);
+      return null;
+    }
+
+    _isRefreshing = true;
+
+    try {
+      // Try to refresh token
+      final authService = AuthService();
+      final refreshResult = await authService.refreshToken();
+
+      if (refreshResult.success && refreshResult.token != null) {
+        // Token refreshed successfully, retry all queued requests
+        await _retryQueuedRequests(refreshResult.token!);
+        
+        // Retry the original request
+        failedRequest.headers['Authorization'] = 'Bearer ${refreshResult.token}';
+        final response = await _dio.request(
+          failedRequest.path,
+          data: failedRequest.data,
+          queryParameters: failedRequest.queryParameters,
+          options: Options(
+            method: failedRequest.method,
+            headers: failedRequest.headers,
+          ),
+        );
+        
+        return response;
+      } else {
+        // Refresh failed, clear tokens and redirect to login
+        await _clearAuthData();
+        return null;
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Token refresh failed: $e');
+      }
+      await _clearAuthData();
+      return null;
+    } finally {
+      _isRefreshing = false;
+      _failedQueue.clear();
+    }
+  }
+
+  Future<void> _retryQueuedRequests(String newToken) async {
+    for (final request in _failedQueue) {
+      try {
+        request.headers['Authorization'] = 'Bearer $newToken';
+        await _dio.request(
+          request.path,
+          data: request.data,
+          queryParameters: request.queryParameters,
+          options: Options(
+            method: request.method,
+            headers: request.headers,
+          ),
+        );
+      } catch (e) {
+        if (kDebugMode) {
+          print('Failed to retry queued request: $e');
+        }
+      }
+    }
+  }
+
+  Future<void> _clearAuthData() async {
+    await HiveService.clearAuthToken();
+    await HiveService.clearRider();
+    
+    // Notify about authentication failure
+    // You might want to use a state management solution here
+    // or emit an event that the UI can listen to
+  }
+
+  String _generateRequestId() {
+    return DateTime.now().millisecondsSinceEpoch.toString();
+  }
+
+  // HTTP Methods with better error handling
+  Future<Response> get(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+  }) async {
+    try {
+      return await _dio.get(
+        path,
+        queryParameters: queryParameters,
+        options: options,
+      );
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  Future<Response> post(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+  }) async {
+    try {
+      return await _dio.post(
+        path,
+        data: data,
+        queryParameters: queryParameters,
+        options: options,
+      );
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  Future<Response> put(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+  }) async {
+    try {
+      return await _dio.put(
+        path,
+        data: data,
+        queryParameters: queryParameters,
+        options: options,
+      );
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  Future<Response> patch(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+  }) async {
+    try {
+      return await _dio.patch(
+        path,
+        data: data,
+        queryParameters: queryParameters,
+        options: options,
+      );
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  Future<Response> delete(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+  }) async {
+    try {
+      return await _dio.delete(
+        path,
+        data: data,
+        queryParameters: queryParameters,
+        options: options,
+      );
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  // Enhanced file upload with progress and validation
+  Future<Response> uploadFile(
+    String path,
+    String filePath, {
+    Map<String, dynamic>? data,
+    String fieldName = 'file',
+    ProgressCallback? onProgress,
+    List<String>? allowedExtensions,
+    int? maxFileSizeBytes,
+  }) async {
+    try {
+      // Validate file if constraints provided
+      if (allowedExtensions != null || maxFileSizeBytes != null) {
+        await _validateFile(filePath, allowedExtensions, maxFileSizeBytes);
+      }
+
+      final formData = FormData.fromMap({
+        fieldName: await MultipartFile.fromFile(
+          filePath,
+          filename: filePath.split('/').last,
+        ),
+        ...?data,
+      });
+
+      return await _dio.post(
+        path,
+        data: formData,
+        onSendProgress: onProgress,
+        options: Options(
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+          sendTimeout: const Duration(minutes: 5), // Longer timeout for uploads
+        ),
+      );
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  Future<void> _validateFile(
+    String filePath,
+    List<String>? allowedExtensions,
+    int? maxFileSizeBytes,
+  ) async {
+    final file = File(filePath);
+    
+    if (!await file.exists()) {
+      throw Exception('File does not exist');
+    }
+
+    // Check file size
+    if (maxFileSizeBytes != null) {
+      final fileSize = await file.length();
+      if (fileSize > maxFileSizeBytes) {
+        throw Exception('File too large. Maximum size: ${maxFileSizeBytes ~/ (1024 * 1024)}MB');
+      }
+    }
+
+    // Check file extension
+    if (allowedExtensions != null) {
+      final extension = filePath.split('.').last.toLowerCase();
+      if (!allowedExtensions.contains(extension)) {
+        throw Exception('File type not allowed. Allowed: ${allowedExtensions.join(', ')}');
+      }
+    }
+  }
+
+  // Enhanced error handling with more specific error types
+  ApiException _handleDioError(DioException error) {
+    switch (error.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+        return ApiException(
+          message: AppConstants.networkErrorMessage,
+          type: ApiErrorType.timeout,
+          statusCode: null,
+        );
+      
+      case DioExceptionType.badResponse:
+        final statusCode = error.response?.statusCode;
+        final responseData = error.response?.data;
+        String message = 'Server error occurred';
+        
+        if (responseData is Map<String, dynamic>) {
+          message = responseData['message'] ?? 
+                   responseData['error'] ?? 
+                   responseData['detail'] ?? 
+                   message;
+        }
+        
+        ApiErrorType errorType;
+        if (statusCode == 401) {
+          message = 'Authentication failed. Please login again.';
+          errorType = ApiErrorType.unauthorized;
+        } else if (statusCode == 403) {
+          message = 'Access denied.';
+          errorType = ApiErrorType.forbidden;
+        } else if (statusCode == 404) {
+          message = 'Resource not found.';
+          errorType = ApiErrorType.notFound;
+        } else if (statusCode == 422) {
+          message = 'Invalid data provided.';
+          errorType = ApiErrorType.validation;
+        } else if (statusCode != null && statusCode >= 500) {
+          message = AppConstants.serverErrorMessage;
+          errorType = ApiErrorType.server;
+        } else {
+          errorType = ApiErrorType.client;
+        }
+        
+        return ApiException(
+          message: message,
+          type: errorType,
+          statusCode: statusCode,
+          response: responseData,
+        );
+      
+      case DioExceptionType.cancel:
+        return ApiException(
+          message: 'Request was cancelled',
+          type: ApiErrorType.cancelled,
+          statusCode: null,
+        );
+      
+      case DioExceptionType.connectionError:
+        return ApiException(
+          message: AppConstants.networkErrorMessage,
+          type: ApiErrorType.network,
+          statusCode: null,
+        );
+      
+      case DioExceptionType.badCertificate:
+        return ApiException(
+          message: 'Security certificate error',
+          type: ApiErrorType.security,
+          statusCode: null,
+        );
+      
+      case DioExceptionType.unknown:
+      default:
+        return ApiException(
+          message: 'An unexpected error occurred',
+          type: ApiErrorType.unknown,
+          statusCode: null,
+        );
+    }
+  }
+
+  // Helper methods for common API patterns
+  Future<List<T>> getList<T>(
+    String path,
+    T Function(Map<String, dynamic>) fromJson, {
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    final response = await get(path, queryParameters: queryParameters);
+    final dynamic responseData = response.data;
+    
+    if (responseData is Map<String, dynamic>) {
+      final List<dynamic> list = responseData['results'] ?? 
+                                responseData['data'] ?? 
+                                responseData['items'] ?? 
+                                [];
+      return list.map((item) => fromJson(item as Map<String, dynamic>)).toList();
+    } else if (responseData is List) {
+      return responseData.map((item) => fromJson(item as Map<String, dynamic>)).toList();
+    }
+    
+    return [];
+  }
+
+  Future<T?> getItem<T>(
+    String path,
+    T Function(Map<String, dynamic>) fromJson, {
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    try {
+      final response = await get(path, queryParameters: queryParameters);
+      final responseData = response.data;
+      
+      if (responseData is Map<String, dynamic>) {
+        return fromJson(responseData);
+      }
+      return null;
+    } catch (e) {
+      if (e is ApiException && e.statusCode == 404) {
+        return null; // Item not found
+      }
+      rethrow;
+    }
+  }
+
+  // Enhanced pagination support
+  Future<PaginatedResponse<T>> getPaginated<T>(
+    String path,
+    T Function(Map<String, dynamic>) fromJson, {
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    final response = await get(path, queryParameters: queryParameters);
+    final data = response.data as Map<String, dynamic>;
+    
+    return PaginatedResponse<T>(
+      results: (data['results'] as List<dynamic>)
+          .map((item) => fromJson(item as Map<String, dynamic>))
+          .toList(),
+      count: data['count'] as int? ?? 0,
+      next: data['next'] as String?,
+      previous: data['previous'] as String?,
+      pageSize: data['page_size'] as int?,
+      currentPage: data['current_page'] as int?,
+      totalPages: data['total_pages'] as int?,
+    );
+  }
+
+  // Safe notification polling methods
+  Future<Map<String, dynamic>> checkVerificationRequest() async {
+    try {
+      final response = await get('/rider/verification-check/');
+      return response.data as Map<String, dynamic>? ?? {'hasRequest': false};
+    } catch (e) {
+      if (kDebugMode) {
+        print('Verification check failed: $e');
+      }
+      return {'hasRequest': false};
+    }
+  }
+
+  Future<Map<String, dynamic>> checkPaymentStatus() async {
+    try {
+      final response = await get('/rider/payment-check/');
+      return response.data as Map<String, dynamic>? ?? {'hasUpdate': false};
+    } catch (e) {
+      if (kDebugMode) {
+        print('Payment check failed: $e');
+      }
+      return {'hasUpdate': false};
+    }
+  }
+
+  Future<Map<String, dynamic>> checkCampaignStatus() async {
+    try {
+      final response = await get('/rider/campaign-check/');
+      return response.data as Map<String, dynamic>? ?? {'hasUpdate': false};
+    } catch (e) {
+      if (kDebugMode) {
+        print('Campaign check failed: $e');
+      }
+      return {'hasUpdate': false};
+    }
+  }
+
+  // Health check method
+  Future<bool> isApiHealthy() async {
+    try {
+      final response = await get('/health/', queryParameters: {'timestamp': DateTime.now().millisecondsSinceEpoch});
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Cleanup method
+  void dispose() {
+    _dio.close();
+  }
+}
+
+// Custom exception class for better error handling
+class ApiException implements Exception {
+  final String message;
+  final ApiErrorType type;
+  final int? statusCode;
+  final dynamic response;
+
+  const ApiException({
+    required this.message,
+    required this.type,
+    this.statusCode,
+    this.response,
+  });
+
+  @override
+  String toString() {
+    return 'ApiException: $message (${type.name}${statusCode != null ? ', status: $statusCode' : ''})';
+  }
+}
+
+enum ApiErrorType {
+  network,
+  timeout,
+  unauthorized,
+  forbidden,
+  notFound,
+  validation,
+  server,
+  client,
+  cancelled,
+  security,
+  unknown,
+}
+
+// Enhanced pagination response
+class PaginatedResponse<T> {
+  final List<T> results;
+  final int count;
+  final String? next;
+  final String? previous;
+  final int? pageSize;
+  final int? currentPage;
+  final int? totalPages;
+
+  const PaginatedResponse({
+    required this.results,
+    required this.count,
+    this.next,
+    this.previous,
+    this.pageSize,
+    this.currentPage,
+    this.totalPages,
+  });
+
+  bool get hasNext => next != null && next!.isNotEmpty;
+  bool get hasPrevious => previous != null && previous!.isNotEmpty;
+  bool get isEmpty => results.isEmpty;
+  int get resultCount => results.length;
+  
+  double get progress {
+    if (totalPages == null || currentPage == null || totalPages == 0) {
+      return 1.0;
+    }
+    return currentPage! / totalPages!;
+  }
+}

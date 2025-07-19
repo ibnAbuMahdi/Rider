@@ -1,0 +1,173 @@
+  Generating the build script.
+  Reading the asset graph.
+  Checking for updates.
+  Updating the asset graph.
+  Building, incremental build.
+  0s riverpod_generator on 57 inputs; lib/main.dart
+  0s riverpod_generator on 57 inputs: 1 skipped; lib/src/app.dart
+  0s riverpod_generator on 57 inputs: 57 skipped
+  0s json_serializable on 57 inputs; lib/main.dart
+  0s json_serializable on 57 inputs: 57 skipped
+  0s hive_generator on 57 inputs; lib/main.dart
+  0s hive_generator on 57 inputs: 57 skipped
+  0s source_gen:combining_builder on 57 inputs; lib/main.dart
+  0s source_gen:combining_builder on 57 inputs: 57 skipped
+  Running the post build.
+  Writing the asset graph.
+E riverpod_generator on lib/src/core/models/campaign.dart:
+  Null check operator used on a null value
+  #0      EnumInfo.getEnumElement (package:_fe_analyzer_shared/src/exhaustiveness/types/enum.dart:52:42)
+  #1      ExhaustivenessCache.getEnumElementStaticType (package:_fe_analyzer_shared/src/exhaustiveness/shared.dart:252:36)
+  #2      PatternConverter._convertConstantValue (package:analyzer/src/generated/exhaustiveness.dart:723:34)
+  #3      PatternConverter.dispatchPattern (package:analyzer/src/generated/exhaustiveness.dart:682:16)
+  #4      SpaceCreator.createRootSpace (package:_fe_analyzer_shared/src/exhaustiveness/shared.dart:407:12)
+  #5      ConstantVerifier._validateSwitchExhaustiveness (package:analyzer/src/dart/constant/constant_verifier.dart:917:40)
+  #6      ConstantVerifier.visitSwitchStatement.<anonymous closure> (package:analyzer/src/dart/constant/constant_verifier.dart:458:9)
+  #7      ConstantVerifier._withConstantPatternValues (package:analyzer/src/dart/constant/constant_verifier.dart:1058:6)
+  #8      ConstantVerifier.visitSwitchStatement (package:analyzer/src/dart/constant/constant_verifier.dart:455:5)
+  #9      SwitchStatementImpl.accept (package:analyzer/src/dart/ast/ast.dart:17492:50)
+  #10     NodeListImpl.accept (package:analyzer/src/dart/ast/ast.dart:13009:20)
+  #11     BlockImpl.visitChildren (package:analyzer/src/dart/ast/ast.dart:2051:17)
+  #12     RecursiveAstVisitor.visitBlock (package:analyzer/dart/ast/visitor.dart:883:10)
+  #13     BlockImpl.accept (package:analyzer/src/dart/ast/ast.dart:2047:50)
+  #14     BlockFunctionBodyImpl.visitChildren (package:analyzer/src/dart/ast/ast.dart:2007:12)
+  #15     RecursiveAstVisitor.visitBlockFunctionBody (package:analyzer/dart/ast/visitor.dart:889:10)
+  #16     BlockFunctionBodyImpl.accept (package:analyzer/src/dart/ast/ast.dart:1999:50)
+  #17     MethodDeclarationImpl.visitChildren (package:analyzer/src/dart/ast/ast.dart:12069:10)
+  #18     RecursiveAstVisitor.visitMethodDeclaration (package:analyzer/dart/ast/visitor.dart:1405:10)
+  #19     ConstantVerifier.visitMethodDeclaration (package:analyzer/src/dart/constant/constant_verifier.dart:362:11)
+  #20     MethodDeclarationImpl.accept (package:analyzer/src/dart/ast/ast.dart:12061:50)
+  #21     NodeListImpl.accept (package:analyzer/src/dart/ast/ast.dart:13009:20)
+  #22     EnumDeclarationImpl.visitChildren (package:analyzer/src/dart/ast/ast.dart:5876:14)
+  #23     RecursiveAstVisitor.visitEnumDeclaration (package:analyzer/dart/ast/visitor.dart:1081:10)
+  #24     EnumDeclarationImpl.accept (package:analyzer/src/dart/ast/ast.dart:5867:50)
+  #25     NodeListImpl.accept (package:analyzer/src/dart/ast/ast.dart:13009:20)
+  #26     CompilationUnitImpl.visitChildren (package:analyzer/src/dart/ast/ast.dart:3621:21)
+  #27     RecursiveAstVisitor.visitCompilationUnit (package:analyzer/dart/ast/visitor.dart:961:10)
+  #28     CompilationUnitImpl.accept (package:analyzer/src/dart/ast/ast.dart:3614:50)
+  #29     LibraryAnalyzer._computeConstantErrors (package:analyzer/src/dart/analysis/library_analyzer.dart:276:23)
+  #30     LibraryAnalyzer._computeVerifyErrors (package:analyzer/src/dart/analysis/library_analyzer.dart:427:5)
+  #31     LibraryAnalyzer._computeDiagnostics (package:analyzer/src/dart/analysis/library_analyzer.dart:303:7)
+  #32     LibraryAnalyzer.analyze (package:analyzer/src/dart/analysis/library_analyzer.dart:109:5)
+  #33     AnalysisDriver._analyzeFileImpl.<anonymous closure> (package:analyzer/src/dart/analysis/driver.dart:1401:11)
+  <asynchronous suspension>
+  #34     PerformanceLog.runAsync (package:analyzer/src/dart/analysis/performance_logger.dart:50:14)
+  <asynchronous suspension>
+  #35     AnalysisDriver._analyzeFile.<anonymous closure> (package:analyzer/src/dart/analysis/driver.dart:1315:9)
+  <asynchronous suspension>
+  #36     OperationPerformanceImpl.runAsync (package:analyzer/src/util/performance/operation_performance.dart:174:14)
+  <asynchronous suspension>
+  #37     AnalysisDriver._analyzeFile (package:analyzer/src/dart/analysis/driver.dart:1312:5)
+  <asynchronous suspension>
+  #38     AnalysisDriver._getErrors (package:analyzer/src/dart/analysis/driver.dart:1743:5)
+  <asynchronous suspension>
+  #39     AnalysisDriver.performWork (package:analyzer/src/dart/analysis/driver.dart:1214:7)
+  <asynchronous suspension>
+  #40     AnalysisDriverScheduler._run (package:analyzer/src/dart/analysis/driver.dart:2446:7)
+  <asynchronous suspension>
+  
+E json_serializable on lib/src/core/models/campaign.dart:
+  Null check operator used on a null value
+  #0      EnumInfo.getEnumElement (package:_fe_analyzer_shared/src/exhaustiveness/types/enum.dart:52:42)
+  #1      ExhaustivenessCache.getEnumElementStaticType (package:_fe_analyzer_shared/src/exhaustiveness/shared.dart:252:36)
+  #2      PatternConverter._convertConstantValue (package:analyzer/src/generated/exhaustiveness.dart:723:34)
+  #3      PatternConverter.dispatchPattern (package:analyzer/src/generated/exhaustiveness.dart:682:16)
+  #4      SpaceCreator.createRootSpace (package:_fe_analyzer_shared/src/exhaustiveness/shared.dart:407:12)
+  #5      ConstantVerifier._validateSwitchExhaustiveness (package:analyzer/src/dart/constant/constant_verifier.dart:917:40)
+  #6      ConstantVerifier.visitSwitchStatement.<anonymous closure> (package:analyzer/src/dart/constant/constant_verifier.dart:458:9)
+  #7      ConstantVerifier._withConstantPatternValues (package:analyzer/src/dart/constant/constant_verifier.dart:1058:6)
+  #8      ConstantVerifier.visitSwitchStatement (package:analyzer/src/dart/constant/constant_verifier.dart:455:5)
+  #9      SwitchStatementImpl.accept (package:analyzer/src/dart/ast/ast.dart:17492:50)
+  #10     NodeListImpl.accept (package:analyzer/src/dart/ast/ast.dart:13009:20)
+  #11     BlockImpl.visitChildren (package:analyzer/src/dart/ast/ast.dart:2051:17)
+  #12     RecursiveAstVisitor.visitBlock (package:analyzer/dart/ast/visitor.dart:883:10)
+  #13     BlockImpl.accept (package:analyzer/src/dart/ast/ast.dart:2047:50)
+  #14     BlockFunctionBodyImpl.visitChildren (package:analyzer/src/dart/ast/ast.dart:2007:12)
+  #15     RecursiveAstVisitor.visitBlockFunctionBody (package:analyzer/dart/ast/visitor.dart:889:10)
+  #16     BlockFunctionBodyImpl.accept (package:analyzer/src/dart/ast/ast.dart:1999:50)
+  #17     MethodDeclarationImpl.visitChildren (package:analyzer/src/dart/ast/ast.dart:12069:10)
+  #18     RecursiveAstVisitor.visitMethodDeclaration (package:analyzer/dart/ast/visitor.dart:1405:10)
+  #19     ConstantVerifier.visitMethodDeclaration (package:analyzer/src/dart/constant/constant_verifier.dart:362:11)
+  #20     MethodDeclarationImpl.accept (package:analyzer/src/dart/ast/ast.dart:12061:50)
+  #21     NodeListImpl.accept (package:analyzer/src/dart/ast/ast.dart:13009:20)
+  #22     EnumDeclarationImpl.visitChildren (package:analyzer/src/dart/ast/ast.dart:5876:14)
+  #23     RecursiveAstVisitor.visitEnumDeclaration (package:analyzer/dart/ast/visitor.dart:1081:10)
+  #24     EnumDeclarationImpl.accept (package:analyzer/src/dart/ast/ast.dart:5867:50)
+  #25     NodeListImpl.accept (package:analyzer/src/dart/ast/ast.dart:13009:20)
+  #26     CompilationUnitImpl.visitChildren (package:analyzer/src/dart/ast/ast.dart:3621:21)
+  #27     RecursiveAstVisitor.visitCompilationUnit (package:analyzer/dart/ast/visitor.dart:961:10)
+  #28     CompilationUnitImpl.accept (package:analyzer/src/dart/ast/ast.dart:3614:50)
+  #29     LibraryAnalyzer._computeConstantErrors (package:analyzer/src/dart/analysis/library_analyzer.dart:276:23)
+  #30     LibraryAnalyzer._computeVerifyErrors (package:analyzer/src/dart/analysis/library_analyzer.dart:427:5)
+  #31     LibraryAnalyzer._computeDiagnostics (package:analyzer/src/dart/analysis/library_analyzer.dart:303:7)
+  #32     LibraryAnalyzer.analyze (package:analyzer/src/dart/analysis/library_analyzer.dart:109:5)
+  #33     AnalysisDriver._analyzeFileImpl.<anonymous closure> (package:analyzer/src/dart/analysis/driver.dart:1401:11)
+  <asynchronous suspension>
+  #34     PerformanceLog.runAsync (package:analyzer/src/dart/analysis/performance_logger.dart:50:14)
+  <asynchronous suspension>
+  #35     AnalysisDriver._analyzeFile.<anonymous closure> (package:analyzer/src/dart/analysis/driver.dart:1315:9)
+  <asynchronous suspension>
+  #36     OperationPerformanceImpl.runAsync (package:analyzer/src/util/performance/operation_performance.dart:174:14)
+  <asynchronous suspension>
+  #37     AnalysisDriver._analyzeFile (package:analyzer/src/dart/analysis/driver.dart:1312:5)
+  <asynchronous suspension>
+  #38     AnalysisDriver._getErrors (package:analyzer/src/dart/analysis/driver.dart:1743:5)
+  <asynchronous suspension>
+  #39     AnalysisDriver.performWork (package:analyzer/src/dart/analysis/driver.dart:1214:7)
+  <asynchronous suspension>
+  #40     AnalysisDriverScheduler._run (package:analyzer/src/dart/analysis/driver.dart:2446:7)
+  <asynchronous suspension>
+  
+E hive_generator on lib/src/core/models/campaign.dart:
+  Null check operator used on a null value
+  #0      EnumInfo.getEnumElement (package:_fe_analyzer_shared/src/exhaustiveness/types/enum.dart:52:42)
+  #1      ExhaustivenessCache.getEnumElementStaticType (package:_fe_analyzer_shared/src/exhaustiveness/shared.dart:252:36)
+  #2      PatternConverter._convertConstantValue (package:analyzer/src/generated/exhaustiveness.dart:723:34)
+  #3      PatternConverter.dispatchPattern (package:analyzer/src/generated/exhaustiveness.dart:682:16)
+  #4      SpaceCreator.createRootSpace (package:_fe_analyzer_shared/src/exhaustiveness/shared.dart:407:12)
+  #5      ConstantVerifier._validateSwitchExhaustiveness (package:analyzer/src/dart/constant/constant_verifier.dart:917:40)
+  #6      ConstantVerifier.visitSwitchStatement.<anonymous closure> (package:analyzer/src/dart/constant/constant_verifier.dart:458:9)
+  #7      ConstantVerifier._withConstantPatternValues (package:analyzer/src/dart/constant/constant_verifier.dart:1058:6)
+  #8      ConstantVerifier.visitSwitchStatement (package:analyzer/src/dart/constant/constant_verifier.dart:455:5)
+  #9      SwitchStatementImpl.accept (package:analyzer/src/dart/ast/ast.dart:17492:50)
+  #10     NodeListImpl.accept (package:analyzer/src/dart/ast/ast.dart:13009:20)
+  #11     BlockImpl.visitChildren (package:analyzer/src/dart/ast/ast.dart:2051:17)
+  #12     RecursiveAstVisitor.visitBlock (package:analyzer/dart/ast/visitor.dart:883:10)
+  #13     BlockImpl.accept (package:analyzer/src/dart/ast/ast.dart:2047:50)
+  #14     BlockFunctionBodyImpl.visitChildren (package:analyzer/src/dart/ast/ast.dart:2007:12)
+  #15     RecursiveAstVisitor.visitBlockFunctionBody (package:analyzer/dart/ast/visitor.dart:889:10)
+  #16     BlockFunctionBodyImpl.accept (package:analyzer/src/dart/ast/ast.dart:1999:50)
+  #17     MethodDeclarationImpl.visitChildren (package:analyzer/src/dart/ast/ast.dart:12069:10)
+  #18     RecursiveAstVisitor.visitMethodDeclaration (package:analyzer/dart/ast/visitor.dart:1405:10)
+  #19     ConstantVerifier.visitMethodDeclaration (package:analyzer/src/dart/constant/constant_verifier.dart:362:11)
+  #20     MethodDeclarationImpl.accept (package:analyzer/src/dart/ast/ast.dart:12061:50)
+  #21     NodeListImpl.accept (package:analyzer/src/dart/ast/ast.dart:13009:20)
+  #22     EnumDeclarationImpl.visitChildren (package:analyzer/src/dart/ast/ast.dart:5876:14)
+  #23     RecursiveAstVisitor.visitEnumDeclaration (package:analyzer/dart/ast/visitor.dart:1081:10)
+  #24     EnumDeclarationImpl.accept (package:analyzer/src/dart/ast/ast.dart:5867:50)
+  #25     NodeListImpl.accept (package:analyzer/src/dart/ast/ast.dart:13009:20)
+  #26     CompilationUnitImpl.visitChildren (package:analyzer/src/dart/ast/ast.dart:3621:21)
+  #27     RecursiveAstVisitor.visitCompilationUnit (package:analyzer/dart/ast/visitor.dart:961:10)
+  #28     CompilationUnitImpl.accept (package:analyzer/src/dart/ast/ast.dart:3614:50)
+  #29     LibraryAnalyzer._computeConstantErrors (package:analyzer/src/dart/analysis/library_analyzer.dart:276:23)
+  #30     LibraryAnalyzer._computeVerifyErrors (package:analyzer/src/dart/analysis/library_analyzer.dart:427:5)
+  #31     LibraryAnalyzer._computeDiagnostics (package:analyzer/src/dart/analysis/library_analyzer.dart:303:7)
+  #32     LibraryAnalyzer.analyze (package:analyzer/src/dart/analysis/library_analyzer.dart:109:5)
+  #33     AnalysisDriver._analyzeFileImpl.<anonymous closure> (package:analyzer/src/dart/analysis/driver.dart:1401:11)
+  <asynchronous suspension>
+  #34     PerformanceLog.runAsync (package:analyzer/src/dart/analysis/performance_logger.dart:50:14)
+  <asynchronous suspension>
+  #35     AnalysisDriver._analyzeFile.<anonymous closure> (package:analyzer/src/dart/analysis/driver.dart:1315:9)
+  <asynchronous suspension>
+  #36     OperationPerformanceImpl.runAsync (package:analyzer/src/util/performance/operation_performance.dart:174:14)
+  <asynchronous suspension>
+  #37     AnalysisDriver._analyzeFile (package:analyzer/src/dart/analysis/driver.dart:1312:5)
+  <asynchronous suspension>
+  #38     AnalysisDriver._getErrors (package:analyzer/src/dart/analysis/driver.dart:1743:5)
+  <asynchronous suspension>
+  #39     AnalysisDriver.performWork (package:analyzer/src/dart/analysis/driver.dart:1214:7)
+  <asynchronous suspension>
+  #40     AnalysisDriverScheduler._run (package:analyzer/src/dart/analysis/driver.dart:2446:7)
+  <asynchronous suspension>
+  
+  Failed to build with build_runner in 5s; wrote 0 outputs.

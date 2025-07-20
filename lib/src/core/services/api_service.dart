@@ -40,14 +40,33 @@ class ApiService {
       },
     );
 
-    // Request interceptor for auth token
+    // Request interceptor for auth token and logging
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) {
+          // Enhanced logging for API requests
+          if (kDebugMode) {
+            print('🔵 API REQUEST START: ${options.method} ${options.path}');
+            print('🔵 Timestamp: ${DateTime.now().toIso8601String()}');
+            print('🔵 Base URL: ${options.baseUrl}');
+            print('🔵 Query Parameters: ${options.queryParameters}');
+            print('🔵 Headers: ${options.headers}');
+            if (options.data != null) {
+              print('🔵 Request Data: ${options.data}');
+            }
+          }
+          
           // Get auth token synchronously from HiveService
           final token = HiveService.getAuthToken();
           if (token != null && token.isNotEmpty) {
             options.headers['Authorization'] = 'Bearer $token';
+            if (kDebugMode) {
+              print('🔵 Auth token added (length: ${token.length})');
+            }
+          } else {
+            if (kDebugMode) {
+              print('🔵 No auth token available');
+            }
           }
           
           // Add request ID for tracking
@@ -65,16 +84,29 @@ class ApiService {
         },
         onResponse: (response, handler) {
           if (kDebugMode) {
-            print('✅ RESPONSE: ${response.statusCode} ${response.requestOptions.path}');
-            print('📄 Data: ${response.data}');
+            print('🟢 API RESPONSE SUCCESS: ${response.requestOptions.method} ${response.requestOptions.path}');
+            print('🟢 Status Code: ${response.statusCode}');
+            print('🟢 Response Headers: ${response.headers}');
+            print('🟢 Response Data: ${response.data}');
+            print('🟢 Response Type: ${response.data.runtimeType}');
+            if (response.requestOptions.headers['X-Request-ID'] != null) {
+              print('🟢 Request ID: ${response.requestOptions.headers['X-Request-ID']}');
+            }
           }
           handler.next(response);
         },
         onError: (error, handler) async {
           if (kDebugMode) {
-            print('❌ ERROR: ${error.response?.statusCode} ${error.requestOptions.path}');
-            print('📄 Error Data: ${error.response?.data}');
-            print('📄 Error Message: ${error.message}');
+            print('🔴 API REQUEST ERROR: ${error.requestOptions.method} ${error.requestOptions.path}');
+            print('🔴 Error Type: ${error.type}');
+            print('🔴 Status Code: ${error.response?.statusCode}');
+            print('🔴 Error Message: ${error.message}');
+            print('🔴 Response Data: ${error.response?.data}');
+            print('🔴 Response Headers: ${error.response?.headers}');
+            if (error.requestOptions.headers['X-Request-ID'] != null) {
+              print('🔴 Request ID: ${error.requestOptions.headers['X-Request-ID']}');
+            }
+            print('🔴 Stack Trace: ${error.stackTrace}');
           }
           
           // Handle 401 - token expired, try refresh
@@ -633,6 +665,13 @@ enum ApiErrorType {
   cancelled,
   security,
   unknown,
+}
+
+// Request ID generation for API tracking
+String _generateRequestId() {
+  final timestamp = DateTime.now().millisecondsSinceEpoch;
+  final random = (timestamp % 10000).toString().padLeft(4, '0');
+  return 'req_$timestamp$random';
 }
 
 // Enhanced pagination response

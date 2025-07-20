@@ -411,4 +411,17 @@ class HiveService {
     return false;
   }
 
+  // Device ID storage methods
+  static Future<void> saveDeviceId(String deviceId) async {
+    await _settingsBox.put('device_id', deviceId);
+  }
+
+  static String? getDeviceId() {
+    return _settingsBox.get('device_id') as String?;
+  }
+
+  static Future<void> clearDeviceId() async {
+    await _settingsBox.delete('device_id');
+  }
+
 }

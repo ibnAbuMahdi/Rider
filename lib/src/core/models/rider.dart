@@ -196,6 +196,34 @@ class Rider {
       return [];
     }
 
+    // Handle numeric parsing (supports both string and number inputs)
+    double parseDouble(dynamic value, [double defaultValue = 0.0]) {
+      if (value == null) return defaultValue;
+      if (value is num) return value.toDouble();
+      if (value is String) {
+        try {
+          return double.parse(value);
+        } catch (e) {
+          return defaultValue;
+        }
+      }
+      return defaultValue;
+    }
+
+    // Handle integer parsing (supports both string and number inputs)
+    int parseInt(dynamic value, [int defaultValue = 0]) {
+      if (value == null) return defaultValue;
+      if (value is num) return value.toInt();
+      if (value is String) {
+        try {
+          return int.parse(value);
+        } catch (e) {
+          return defaultValue;
+        }
+      }
+      return defaultValue;
+    }
+
     return Rider(
       id: json['id']?.toString() ?? '',
       phoneNumber: json['phone_number']?.toString() ?? json['phone']?.toString() ?? '',
@@ -208,19 +236,19 @@ class Rider {
       deviceId: json['device_id']?.toString(),
       createdAt: parseDateTime(json['created_at']),
       lastActiveAt: parseNullableDateTime(json['last_active_at']),
-      totalEarnings: (json['total_earnings'] as num?)?.toDouble() ?? 0.0,
-      availableBalance: (json['available_balance'] as num?)?.toDouble() ?? 0.0,
-      pendingBalance: (json['pending_balance'] as num?)?.toDouble() ?? 0.0,
-      totalCampaigns: (json['total_campaigns'] as num?)?.toInt() ?? 0,
-      totalVerifications: (json['total_verifications'] as num?)?.toInt() ?? 0,
-      averageRating: (json['average_rating'] as num?)?.toDouble() ?? 0.0,
+      totalEarnings: parseDouble(json['total_earnings']),
+      availableBalance: parseDouble(json['available_balance']),
+      pendingBalance: parseDouble(json['pending_balance'] ?? json['pending_earnings']),
+      totalCampaigns: parseInt(json['total_campaigns']),
+      totalVerifications: parseInt(json['total_verifications']),
+      averageRating: parseDouble(json['average_rating'] ?? json['rating']),
       referralCode: json['referral_code']?.toString(),
       settings: json['settings'] as Map<String, dynamic>?,
       hasCompletedOnboarding: json['has_completed_onboarding'] == true,
       currentCampaignId: json['current_campaign_id']?.toString(),
       lastSyncAt: parseNullableDateTime(json['last_sync_at']),
       suspiciousActivities: parseStringList(json['suspicious_activities']),
-      riskScore: (json['risk_score'] as num?)?.toDouble() ?? 0.0,
+      riskScore: parseDouble(json['risk_score']),
       bankAccountNumber: json['bank_account_number']?.toString(),
       bankCode: json['bank_code']?.toString(),
       bankAccountName: json['bank_account_name']?.toString(),
@@ -325,9 +353,6 @@ class Rider {
       bankAccountNumber: bankAccountNumber ?? this.bankAccountNumber,
       bankCode: bankCode ?? this.bankCode,
       bankAccountName: bankAccountName ?? this.bankAccountName,
-      riderId: riderId ?? this.riderId,
-      status: status ?? this.status,
-      verificationStatus: verificationStatus ?? this.verificationStatus,
       riderId: riderId ?? this.riderId,
       status: status ?? this.status,
       verificationStatus: verificationStatus ?? this.verificationStatus,

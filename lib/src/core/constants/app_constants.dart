@@ -23,6 +23,7 @@ class AppConstants {
   static const String refreshTokenKey = 'refresh_token';  // ADDED
   static const String userIdKey = 'user_id';
   static const String riderDataKey = 'rider_data';
+  static const String deviceIdKey = 'device_id';  // ADDED
   static const String campaignDataKey = 'campaign_data';
   static const String locationDataKey = 'location_data';
   static const String earningsDataKey = 'earnings_data';

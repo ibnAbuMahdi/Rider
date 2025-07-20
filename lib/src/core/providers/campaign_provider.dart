@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/campaign.dart';
 import '../services/campaign_service.dart';
@@ -63,23 +64,58 @@ class CampaignNotifier extends StateNotifier<CampaignState> {
   }
 
   Future<void> loadAvailableCampaigns() async {
+    if (kDebugMode) {
+      print('🎯 LOADING CAMPAIGNS: Starting campaign load');
+      print('🎯 Current state: campaigns=${state.campaigns.length}, isLoading=${state.isLoading}');
+    }
+    
+    // Prevent concurrent loading
+    if (state.isLoading) {
+      if (kDebugMode) {
+        print('🎯 CAMPAIGNS LOAD BLOCKED: Already loading');
+      }
+      return;
+    }
+    
     state = state.copyWith(isLoading: true, error: null);
     
     try {
+      if (kDebugMode) print('🎯 Calling campaign service...');
       final campaigns = await _campaignService.getAvailableCampaigns();
       
+      if (kDebugMode) {
+        print('🎯 CAMPAIGNS LOADED: ${campaigns.length} campaigns received');
+        for (int i = 0; i < campaigns.length && i < 3; i++) {
+          print('🎯 Campaign $i: ${campaigns[i].name} (${campaigns[i].status})');
+        }
+      }
+      
       // Cache campaigns locally
+      if (kDebugMode) print('🎯 Caching campaigns to Hive...');
       await HiveService.saveCampaigns(campaigns);
       
       state = state.copyWith(
         campaigns: campaigns,
         isLoading: false,
       );
+      
+      if (kDebugMode) print('🎯 CAMPAIGNS LOAD SUCCESS: State updated');
     } catch (e) {
+      if (kDebugMode) {
+        print('🎯 CAMPAIGNS LOAD ERROR: $e');
+        print('🎯 Error type: ${e.runtimeType}');
+        print('🎯 Stack trace: ${StackTrace.current}');
+      }
+      
+      // Ensure we always clear loading state even on error
       state = state.copyWith(
         isLoading: false,
         error: e.toString(),
       );
+      // Prevent exception from bubbling up and crashing the app
+      if (kDebugMode) {
+        print('Campaign loading error (handled): $e');
+      }
     }
   }
 

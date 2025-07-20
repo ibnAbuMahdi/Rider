@@ -44,13 +44,16 @@ class RiderAdapter extends TypeAdapter<Rider> {
       bankAccountNumber: fields[24] as String?,
       bankCode: fields[25] as String?,
       bankAccountName: fields[26] as String?,
+      riderId: fields[27] as String?,
+      status: fields[28] as String?,
+      verificationStatus: fields[29] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, Rider obj) {
     writer
-      ..writeByte(27)
+      ..writeByte(30)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -104,7 +107,13 @@ class RiderAdapter extends TypeAdapter<Rider> {
       ..writeByte(25)
       ..write(obj.bankCode)
       ..writeByte(26)
-      ..write(obj.bankAccountName);
+      ..write(obj.bankAccountName)
+      ..writeByte(27)
+      ..write(obj.riderId)
+      ..writeByte(28)
+      ..write(obj.status)
+      ..writeByte(29)
+      ..write(obj.verificationStatus);
   }
 
   @override
@@ -124,67 +133,74 @@ class RiderAdapter extends TypeAdapter<Rider> {
 
 Rider _$RiderFromJson(Map<String, dynamic> json) => Rider(
       id: json['id'] as String,
-      phoneNumber: json['phoneNumber'] as String,
-      firstName: json['firstName'] as String?,
-      lastName: json['lastName'] as String?,
-      profileImageUrl: json['profileImageUrl'] as String?,
-      isActive: json['isActive'] as bool? ?? false,
-      isVerified: json['isVerified'] as bool? ?? false,
-      fleetOwnerId: json['fleetOwnerId'] as String?,
-      deviceId: json['deviceId'] as String?,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      lastActiveAt: json['lastActiveAt'] == null
+      phoneNumber: json['phone_number'] as String,
+      firstName: json['first_name'] as String?,
+      lastName: json['last_name'] as String?,
+      profileImageUrl: json['profile_image_url'] as String?,
+      isActive: json['is_active'] as bool? ?? false,
+      isVerified: json['is_verified'] as bool? ?? false,
+      fleetOwnerId: json['fleet_owner_id'] as String?,
+      deviceId: json['device_id'] as String?,
+      createdAt: DateTime.parse(json['created_at'] as String),
+      lastActiveAt: json['last_active_at'] == null
           ? null
-          : DateTime.parse(json['lastActiveAt'] as String),
-      totalEarnings: (json['totalEarnings'] as num?)?.toDouble() ?? 0.0,
-      availableBalance: (json['availableBalance'] as num?)?.toDouble() ?? 0.0,
-      pendingBalance: (json['pendingBalance'] as num?)?.toDouble() ?? 0.0,
-      totalCampaigns: (json['totalCampaigns'] as num?)?.toInt() ?? 0,
-      totalVerifications: (json['totalVerifications'] as num?)?.toInt() ?? 0,
-      averageRating: (json['averageRating'] as num?)?.toDouble() ?? 0.0,
-      referralCode: json['referralCode'] as String?,
+          : DateTime.parse(json['last_active_at'] as String),
+      totalEarnings: (json['total_earnings'] as num?)?.toDouble() ?? 0.0,
+      availableBalance: (json['available_balance'] as num?)?.toDouble() ?? 0.0,
+      pendingBalance: (json['pending_balance'] as num?)?.toDouble() ?? 0.0,
+      totalCampaigns: (json['total_campaigns'] as num?)?.toInt() ?? 0,
+      totalVerifications: (json['total_verifications'] as num?)?.toInt() ?? 0,
+      averageRating: (json['average_rating'] as num?)?.toDouble() ?? 0.0,
+      referralCode: json['referral_code'] as String?,
       settings: json['settings'] as Map<String, dynamic>?,
-      hasCompletedOnboarding: json['hasCompletedOnboarding'] as bool? ?? false,
-      currentCampaignId: json['currentCampaignId'] as String?,
-      lastSyncAt: json['lastSyncAt'] == null
+      hasCompletedOnboarding:
+          json['has_completed_onboarding'] as bool? ?? false,
+      currentCampaignId: json['current_campaign_id'] as String?,
+      lastSyncAt: json['last_sync_at'] == null
           ? null
-          : DateTime.parse(json['lastSyncAt'] as String),
-      suspiciousActivities: (json['suspiciousActivities'] as List<dynamic>?)
+          : DateTime.parse(json['last_sync_at'] as String),
+      suspiciousActivities: (json['suspicious_activities'] as List<dynamic>?)
               ?.map((e) => e as String)
               .toList() ??
           const [],
-      riskScore: (json['riskScore'] as num?)?.toDouble() ?? 0.0,
-      bankAccountNumber: json['bankAccountNumber'] as String?,
-      bankCode: json['bankCode'] as String?,
-      bankAccountName: json['bankAccountName'] as String?,
+      riskScore: (json['risk_score'] as num?)?.toDouble() ?? 0.0,
+      bankAccountNumber: json['bank_account_number'] as String?,
+      bankCode: json['bank_code'] as String?,
+      bankAccountName: json['bank_account_name'] as String?,
+      riderId: json['rider_id'] as String?,
+      status: json['status'] as String?,
+      verificationStatus: json['verification_status'] as String?,
     );
 
 Map<String, dynamic> _$RiderToJson(Rider instance) => <String, dynamic>{
       'id': instance.id,
-      'phoneNumber': instance.phoneNumber,
-      'firstName': instance.firstName,
-      'lastName': instance.lastName,
-      'profileImageUrl': instance.profileImageUrl,
-      'isActive': instance.isActive,
-      'isVerified': instance.isVerified,
-      'fleetOwnerId': instance.fleetOwnerId,
-      'deviceId': instance.deviceId,
-      'createdAt': instance.createdAt.toIso8601String(),
-      'lastActiveAt': instance.lastActiveAt?.toIso8601String(),
-      'totalEarnings': instance.totalEarnings,
-      'availableBalance': instance.availableBalance,
-      'pendingBalance': instance.pendingBalance,
-      'totalCampaigns': instance.totalCampaigns,
-      'totalVerifications': instance.totalVerifications,
-      'averageRating': instance.averageRating,
-      'referralCode': instance.referralCode,
+      'phone_number': instance.phoneNumber,
+      'first_name': instance.firstName,
+      'last_name': instance.lastName,
+      'profile_image_url': instance.profileImageUrl,
+      'is_active': instance.isActive,
+      'is_verified': instance.isVerified,
+      'fleet_owner_id': instance.fleetOwnerId,
+      'device_id': instance.deviceId,
+      'created_at': instance.createdAt.toIso8601String(),
+      'last_active_at': instance.lastActiveAt?.toIso8601String(),
+      'total_earnings': instance.totalEarnings,
+      'available_balance': instance.availableBalance,
+      'pending_balance': instance.pendingBalance,
+      'total_campaigns': instance.totalCampaigns,
+      'total_verifications': instance.totalVerifications,
+      'average_rating': instance.averageRating,
+      'referral_code': instance.referralCode,
       'settings': instance.settings,
-      'hasCompletedOnboarding': instance.hasCompletedOnboarding,
-      'currentCampaignId': instance.currentCampaignId,
-      'lastSyncAt': instance.lastSyncAt?.toIso8601String(),
-      'suspiciousActivities': instance.suspiciousActivities,
-      'riskScore': instance.riskScore,
-      'bankAccountNumber': instance.bankAccountNumber,
-      'bankCode': instance.bankCode,
-      'bankAccountName': instance.bankAccountName,
+      'has_completed_onboarding': instance.hasCompletedOnboarding,
+      'current_campaign_id': instance.currentCampaignId,
+      'last_sync_at': instance.lastSyncAt?.toIso8601String(),
+      'suspicious_activities': instance.suspiciousActivities,
+      'risk_score': instance.riskScore,
+      'bank_account_number': instance.bankAccountNumber,
+      'bank_code': instance.bankCode,
+      'bank_account_name': instance.bankAccountName,
+      'rider_id': instance.riderId,
+      'status': instance.status,
+      'verification_status': instance.verificationStatus,
     };

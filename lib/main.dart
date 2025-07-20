@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +13,9 @@ import 'src/core/services/location_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Set up comprehensive error handling
+  _setupErrorHandling();
   
   // Initialize core services
   await _initializeApp();
@@ -60,4 +64,40 @@ Future<void> _initializeApp() async {
     debugPrint('Error initializing app: $e');
     // Continue with app launch even if some services fail
   }
+}
+
+// Set up comprehensive error handling for the app
+void _setupErrorHandling() {
+  // Catch Flutter framework errors
+  FlutterError.onError = (FlutterErrorDetails details) {
+    if (kDebugMode) {
+      print('🚨 FLUTTER ERROR:');
+      print('🚨 Error: ${details.exception}');
+      print('🚨 Stack: ${details.stack}');
+      print('🚨 Library: ${details.library}');
+      print('🚨 Context: ${details.context}');
+      print('🚨 Timestamp: ${DateTime.now().toIso8601String()}');
+    }
+    
+    // In production, send to crash reporting service
+    // CrashReporting.recordError(details.exception, details.stack);
+    
+    FlutterError.presentError(details);
+  };
+  
+  // Catch errors not handled by Flutter
+  PlatformDispatcher.instance.onError = (error, stack) {
+    if (kDebugMode) {
+      print('🚨 PLATFORM ERROR:');
+      print('🚨 Error: $error');
+      print('🚨 Stack: $stack');
+      print('🚨 Error Type: ${error.runtimeType}');
+      print('🚨 Timestamp: ${DateTime.now().toIso8601String()}');
+    }
+    
+    // In production, send to crash reporting service
+    // CrashReporting.recordError(error, stack);
+    
+    return true;
+  };
 }

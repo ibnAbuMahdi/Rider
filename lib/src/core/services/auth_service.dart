@@ -405,13 +405,48 @@ class AuthService {
 
   /// Get device information for security
   Future<Map<String, dynamic>> _getDeviceInfo() async {
-    // Basic device info - you can enhance this with device_info_plus
+    // Get or create device ID
+    String? deviceId = HiveService.getDeviceId();
+    if (deviceId == null) {
+      // Generate unique device ID
+      deviceId = _generateDeviceId();
+      await HiveService.saveDeviceId(deviceId);
+    }
+
+    // Get platform info
+    String platform = 'android'; // Default to android
+    String deviceName = 'Unknown Device';
+    String osVersion = 'Unknown';
+    
+    try {
+      // You can enhance this with device_info_plus package
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        platform = 'ios';
+        deviceName = 'iPhone/iPad';
+      } else if (defaultTargetPlatform == TargetPlatform.android) {
+        platform = 'android';
+        deviceName = 'Android Device';
+      }
+    } catch (e) {
+      // Fallback to defaults
+    }
+
     return {
-      'platform': 'flutter',
+      'device_id': deviceId,
+      'device_name': deviceName,
+      'platform': platform,
+      'os_version': osVersion,
       'app_version': AppConstants.appVersion,
       'timestamp': DateTime.now().toIso8601String(),
-      // Add more device info as needed for security
     };
+  }
+
+  /// Generate a unique device ID
+  String _generateDeviceId() {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final random = Random().nextInt(999999);
+    final hash = sha256.convert('${timestamp}_${random}_stika_rider'.codeUnits);
+    return 'stika_${hash.toString().substring(0, 16)}';
   }
 
   /// Handle OTP-related errors

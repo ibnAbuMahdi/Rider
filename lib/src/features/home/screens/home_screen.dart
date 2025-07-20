@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
@@ -22,6 +23,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Set<gmaps.Marker> _markers = {};
   Set<gmaps.Circle> _circles = {};
   bool _showMap = true;
+  bool _isInitialLoading = true;
 
   // Default Lagos coordinates
   static const gmaps.LatLng _defaultLocation = gmaps.LatLng(6.5244, 3.3792);
@@ -37,24 +39,94 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _loadInitialData() async {
-    // Request location permissions and get current position
-    await ref.read(locationProvider.notifier).requestPermissions();
-    await ref.read(locationProvider.notifier).getCurrentLocation();
-    
-    // Refresh campaigns and earnings
-    await ref.read(campaignProvider.notifier).refresh();
-    await ref.read(earningsProvider.notifier).refresh();
-    
-    // Update map markers
-    _updateMapMarkers();
+    try {
+      // Load data sequentially to avoid race conditions and API overload
+      // Each operation is wrapped in try-catch to prevent any single failure from crashing the app
+      
+      // 1. Load location data first (most critical)
+      await _loadLocationData();
+      
+      // Small delay to avoid overwhelming the backend
+      await Future.delayed(const Duration(milliseconds: 300));
+      
+      // 2. Load campaign data
+      await _loadCampaignData();
+      
+      // Small delay to avoid overwhelming the backend
+      await Future.delayed(const Duration(milliseconds: 300));
+      
+      // 3. Load earnings data last (least critical for initial display)
+      await _loadEarningsData();
+      
+      // Update map markers after all data is loaded
+      if (mounted) {
+        _updateMapMarkers();
+        setState(() {
+          _isInitialLoading = false;
+        });
+      }
+    } catch (e) {
+      // Handle errors gracefully - don't crash the app
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Some data could not be loaded. Pull to refresh.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        setState(() {
+          _isInitialLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadLocationData() async {
+    try {
+      // Load location data with timeout to prevent hanging
+      await ref.read(locationProvider.notifier).requestPermissions().timeout(Duration(seconds: 10));
+      await ref.read(locationProvider.notifier).getCurrentLocation().timeout(Duration(seconds: 10));
+    } catch (e) {
+      // Location errors are non-critical - continue without location
+      if (kDebugMode) {
+        print('Location loading failed (non-critical): $e');
+      }
+    }
+  }
+
+  Future<void> _loadCampaignData() async {
+    try {
+      // Load campaign data with timeout and error isolation
+      await ref.read(campaignProvider.notifier).refresh().timeout(Duration(seconds: 15));
+    } catch (e) {
+      // Campaign errors are non-critical - continue with cached data
+      if (kDebugMode) {
+        print('Campaign loading failed (non-critical): $e');
+      }
+    }
+  }
+
+  Future<void> _loadEarningsData() async {
+    try {
+      // Load earnings data with timeout and error isolation
+      await ref.read(earningsProvider.notifier).refresh().timeout(Duration(seconds: 15));
+    } catch (e) {
+      // Earnings errors are non-critical - continue with cached data
+      if (kDebugMode) {
+        print('Earnings loading failed (non-critical): $e');
+      }
+    }
   }
 
   void _updateMapMarkers() {
-    final campaigns = ref.read(campaignProvider).campaigns;
-    final currentPosition = ref.read(locationProvider).currentPosition;
-    
-    final Set<gmaps.Marker> markers = {};
-    final Set<gmaps.Circle> circles = {};
+    try {
+      if (!mounted) return;
+      
+      final campaigns = ref.read(campaignProvider).campaigns;
+      final currentPosition = ref.read(locationProvider).currentPosition;
+      
+      final Set<gmaps.Marker> markers = {};
+      final Set<gmaps.Circle> circles = {};
 
     // Add campaign markers and geofences
     for (final campaign in campaigns) {
@@ -114,14 +186,48 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       markers.add(currentLocationMarker);
     }
 
-    setState(() {
-      _markers = markers;
-      _circles = circles;
-    });
+      if (mounted) {
+        setState(() {
+          _markers = markers;
+          _circles = circles;
+        });
+      }
+    } catch (e) {
+      // Handle marker update errors silently
+      if (mounted) {
+        setState(() {
+          _markers = {};
+          _circles = {};
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Show loading screen during initial data load
+    if (_isInitialLoading) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(
+                'Loading your dashboard...',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final authState = ref.watch(authProvider);
     final campaignState = ref.watch(campaignProvider);
     final locationState = ref.watch(locationProvider);
@@ -407,28 +513,66 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildMapView() {
-    final currentPosition = ref.watch(locationProvider).currentPosition;
-    
-    return gmaps.GoogleMap(
-      initialCameraPosition: gmaps.CameraPosition(
-        target: currentPosition != null 
-          ? gmaps.LatLng(currentPosition.latitude, currentPosition.longitude)
-          : _defaultLocation,
-        zoom: 12,
-      ),
-      onMapCreated: (gmaps.GoogleMapController controller) {
-        _mapController = controller;
-        _updateMapMarkers();
-      },
-      markers: _markers,
-      circles: _circles,
-      myLocationEnabled: true,
-      myLocationButtonEnabled: true,
-      zoomControlsEnabled: false,
-      mapToolbarEnabled: false,
-      buildingsEnabled: false,
-      trafficEnabled: false,
-    );
+    try {
+      final currentPosition = ref.watch(locationProvider).currentPosition;
+      
+      return gmaps.GoogleMap(
+        initialCameraPosition: gmaps.CameraPosition(
+          target: currentPosition != null 
+            ? gmaps.LatLng(currentPosition.latitude, currentPosition.longitude)
+            : _defaultLocation,
+          zoom: 12,
+        ),
+        onMapCreated: (gmaps.GoogleMapController controller) {
+          try {
+            _mapController = controller;
+            // Defer marker updates to avoid blocking UI
+            Future.microtask(() => _updateMapMarkers());
+          } catch (e) {
+            // Handle map controller errors
+          }
+        },
+        markers: _markers,
+        circles: _circles,
+        myLocationEnabled: false, // Disable to reduce load
+        myLocationButtonEnabled: false,
+        zoomControlsEnabled: false,
+        mapToolbarEnabled: false,
+        buildingsEnabled: false,
+        trafficEnabled: false,
+        liteModeEnabled: true, // Enable lite mode for better performance
+      );
+    } catch (e) {
+      // Fallback UI if Google Maps fails
+      return Container(
+        color: AppColors.background,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.map_outlined,
+                size: 48,
+                color: AppColors.textSecondary.withOpacity(0.5),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Map not available',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: () => setState(() {}),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
   }
 
   Widget _buildCampaignListView() {

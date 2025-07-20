@@ -79,7 +79,18 @@ class EarningsNotifier extends StateNotifier<EarningsState> {
 
   // Fetch earnings from API
   Future<void> fetchEarnings({bool refresh = false}) async {
-    if (state.isLoading && !refresh) return;
+    if (kDebugMode) {
+      print('💰 FETCHING EARNINGS: refresh=$refresh, currentLoading=${state.isLoading}');
+      print('💰 Current state: earnings=${state.earnings.length}, hasMore=${state.hasMore}, page=${state.currentPage}');
+    }
+    
+    // Prevent concurrent calls to avoid race conditions
+    if (state.isLoading && !refresh) {
+      if (kDebugMode) {
+        print('💰 EARNINGS FETCH BLOCKED: Already loading');
+      }
+      return;
+    }
 
     try {
       if (refresh) {
@@ -166,10 +177,32 @@ class EarningsNotifier extends StateNotifier<EarningsState> {
 
   // Refresh all data
   Future<void> refresh() async {
-    await Future.wait([
-      fetchEarnings(refresh: true),
-      fetchPaymentSummary(),
-    ]);
+    if (kDebugMode) {
+      print('🔄 EARNINGS REFRESH: Starting refresh process');
+      print('🔄 Timestamp: ${DateTime.now().toIso8601String()}');
+    }
+    
+    try {
+      // Run sequentially to avoid API overload and race conditions
+      if (kDebugMode) print('🔄 Step 1: Fetching earnings...');
+      await fetchEarnings(refresh: true);
+      
+      // Small delay between requests
+      if (kDebugMode) print('🔄 Step 2: Waiting 200ms...');
+      await Future.delayed(const Duration(milliseconds: 200));
+      
+      if (kDebugMode) print('🔄 Step 3: Fetching payment summary...');
+      await fetchPaymentSummary();
+      
+      if (kDebugMode) print('🔄 EARNINGS REFRESH: Completed successfully');
+    } catch (e) {
+      // Handle refresh errors gracefully
+      if (kDebugMode) {
+        print('❌ EARNINGS REFRESH ERROR: $e');
+        print('❌ Error type: ${e.runtimeType}');
+        print('❌ Stack trace: ${StackTrace.current}');
+      }
+    }
   }
 
   // Filter earnings by status

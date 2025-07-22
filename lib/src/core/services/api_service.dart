@@ -10,7 +10,7 @@ class ApiService {
   late final Dio _dio;
   static ApiService? _instance;
   bool _isRefreshing = false;
-  List<RequestOptions> _failedQueue = [];
+  final List<RequestOptions> _failedQueue = [];
 
   ApiService._internal() {
     _dio = Dio();
@@ -439,7 +439,7 @@ class ApiService {
       case DioExceptionType.connectionTimeout:
       case DioExceptionType.sendTimeout:
       case DioExceptionType.receiveTimeout:
-        return ApiException(
+        return const ApiException(
           message: AppConstants.networkErrorMessage,
           type: ApiErrorType.timeout,
           statusCode: null,
@@ -485,21 +485,21 @@ class ApiService {
         );
       
       case DioExceptionType.cancel:
-        return ApiException(
+        return const ApiException(
           message: 'Request was cancelled',
           type: ApiErrorType.cancelled,
           statusCode: null,
         );
       
       case DioExceptionType.connectionError:
-        return ApiException(
+        return const ApiException(
           message: AppConstants.networkErrorMessage,
           type: ApiErrorType.network,
           statusCode: null,
         );
       
       case DioExceptionType.badCertificate:
-        return ApiException(
+        return const ApiException(
           message: 'Security certificate error',
           type: ApiErrorType.security,
           statusCode: null,
@@ -507,7 +507,7 @@ class ApiService {
       
       case DioExceptionType.unknown:
       default:
-        return ApiException(
+        return const ApiException(
           message: 'An unexpected error occurred',
           type: ApiErrorType.unknown,
           statusCode: null,

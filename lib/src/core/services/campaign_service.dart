@@ -1,5 +1,4 @@
 import '../models/campaign.dart';
-import '../constants/app_constants.dart';
 import 'api_service.dart';
 
 class CampaignResult {

@@ -28,7 +28,7 @@ class StikaRiderApp extends ConsumerWidget {
       builder: (context, child) {
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(
-            textScaleFactor: MediaQuery.of(context).textScaleFactor.clamp(0.8, 1.4),
+            textScaler: TextScaler.linear(MediaQuery.of(context).textScaleFactor.clamp(0.8, 1.4)),
           ),
           child: ConnectivityWrapper(
             child: AppSecurity.secureApp(

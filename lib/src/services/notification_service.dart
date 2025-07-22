@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:logger/logger.dart';
 import '../core/services/api_service.dart';
-import '../services/sms_service.dart';
 import '../core/routing/app_router.dart';
 
 class NotificationService {
@@ -43,20 +42,22 @@ class NotificationService {
 
   static Future<void> _checkForUpdates() async {
     try {
+      final apiService = ApiService.instance;
+      
       // Check for verification requests
-      final verificationCheck = await ApiService.checkVerificationRequest();
+      final verificationCheck = await apiService.checkVerificationRequest();
       if (verificationCheck['hasRequest'] == true) {
         await _showVerificationAlert();
       }
       
       // Check for payment updates
-      final paymentCheck = await ApiService.checkPaymentStatus();
+      final paymentCheck = await apiService.checkPaymentStatus();
       if (paymentCheck['hasUpdate'] == true) {
         await _showPaymentUpdate(paymentCheck['amount']);
       }
       
       // Check for campaign updates
-      final campaignCheck = await ApiService.checkCampaignStatus();
+      final campaignCheck = await apiService.checkCampaignStatus();
       if (campaignCheck['hasUpdate'] == true) {
         await _showCampaignUpdate(campaignCheck['campaign']);
       }

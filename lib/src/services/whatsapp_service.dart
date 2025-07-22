@@ -84,7 +84,7 @@ class WhatsAppService {
 
   static Future<void> requestVerificationHelp() async {
     try {
-      final message = 'I need help with verification. '
+      const message = 'I need help with verification. '
           'My camera is not working properly or I don\'t understand the process.';
       
       await openSupportChat(message);
@@ -95,7 +95,7 @@ class WhatsAppService {
 
   static Future<void> requestPaymentHelp() async {
     try {
-      final message = 'I have a question about my payments. '
+      const message = 'I have a question about my payments. '
           'Please help me understand when I will receive my money.';
       
       await openSupportChat(message);

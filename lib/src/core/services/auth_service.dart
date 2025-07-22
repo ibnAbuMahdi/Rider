@@ -56,7 +56,7 @@ class AuthService {
       
       // Validate phone number format
       if (!isValidNigerianPhone(formattedPhone)) {
-        return OTPResult(
+        return const OTPResult(
           success: false,
           error: 'Please enter a valid Nigerian phone number (e.g., 08031234567)',
           errorCode: 'INVALID_PHONE',
@@ -90,7 +90,7 @@ class AuthService {
           expiresInMinutes: data['expires_in_minutes'] ?? 5,
         );
       } else {
-        return OTPResult(
+        return const OTPResult(
           success: false,
           error: 'Failed to send verification code',
           errorCode: 'SEND_FAILED',
@@ -117,7 +117,7 @@ class AuthService {
       
       // Check if we can resend (rate limiting)
       if (HiveService.isOTPRateLimited(formattedPhone)) {
-        return OTPResult(
+        return const OTPResult(
           success: false,
           error: 'Please wait 60 seconds before requesting again',
           errorCode: 'RATE_LIMITED',
@@ -144,7 +144,7 @@ class AuthService {
       
       // Validate OTP format (4 digits for Kudisms)
       if (otp.length != AppConstants.otpLength || !RegExp(r'^\d{4}$').hasMatch(otp)) {
-        return AuthResult(
+        return const AuthResult(
           success: false,
           error: 'Please enter a valid ${AppConstants.otpLength}-digit code',
           errorCode: 'INVALID_OTP_FORMAT',
@@ -163,7 +163,7 @@ class AuthService {
         // Check attempt limit (Kudisms allows 2 attempts)
         if (attempts >= AppConstants.maxOtpAttempts) {
           _otpCache.remove(formattedPhone);
-          return AuthResult(
+          return const AuthResult(
             success: false,
             error: 'Too many failed attempts. Request a new code.',
             errorCode: 'TOO_MANY_ATTEMPTS',
@@ -208,7 +208,7 @@ class AuthService {
           isNewUser: data['is_new_user'] ?? false,
         );
       } else {
-        return AuthResult(
+        return const AuthResult(
           success: false,
           error: 'Invalid verification code',
           errorCode: 'INVALID_OTP',
@@ -234,7 +234,7 @@ class AuthService {
       final refreshToken = HiveService.getRefreshToken();
       
       if (refreshToken == null) {
-        return AuthResult(
+        return const AuthResult(
           success: false,
           error: 'No refresh token available',
           errorCode: 'NO_REFRESH_TOKEN',
@@ -275,7 +275,7 @@ class AuthService {
           rider: data['rider'] != null ? Rider.fromJson(data['rider']) : null,
         );
       } else {
-        return AuthResult(
+        return const AuthResult(
           success: false,
           error: 'Failed to refresh session',
           errorCode: 'REFRESH_FAILED',
@@ -483,14 +483,14 @@ class AuthService {
           );
       }
     } else if (e.statusCode == 500) {
-      return OTPResult(
+      return const OTPResult(
         success: false,
         error: 'Server error. Please try again later.',
         errorCode: 'SERVER_ERROR',
       );
     }
     
-    return OTPResult(
+    return const OTPResult(
       success: false,
       error: 'Network error. Please check your connection.',
       errorCode: 'NETWORK_ERROR',
@@ -537,7 +537,7 @@ class AuthService {
       }
     }
     
-    return AuthResult(
+    return const AuthResult(
       success: false,
       error: 'Network error. Please try again.',
       errorCode: 'NETWORK_ERROR',

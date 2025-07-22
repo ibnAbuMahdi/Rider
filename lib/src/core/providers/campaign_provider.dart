@@ -85,8 +85,12 @@ class CampaignNotifier extends StateNotifier<CampaignState> {
       
       if (kDebugMode) {
         print('🎯 CAMPAIGNS LOADED: ${campaigns.length} campaigns received');
-        for (int i = 0; i < campaigns.length && i < 3; i++) {
-          print('🎯 Campaign $i: ${campaigns[i].name} (${campaigns[i].status})');
+        if (campaigns.isNotEmpty) {
+          for (int i = 0; i < campaigns.length && i < 3; i++) {
+            print('🎯 Campaign $i: ${campaigns[i].name} (${campaigns[i].status})');
+          }
+        } else {
+          print('🎯 No campaigns available');
         }
       }
       

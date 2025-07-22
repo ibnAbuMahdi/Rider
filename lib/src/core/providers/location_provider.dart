@@ -56,23 +56,85 @@ class LocationNotifier extends StateNotifier<LocationState> {
   }
 
   Future<bool> requestPermissions() async {
-    final granted = await _locationService.requestLocationPermission();
-    state = state.copyWith(hasPermission: granted);
-    return granted;
+    if (kDebugMode) {
+      print('📍 LOCATION: Starting permission request...');
+    }
+    
+    try {
+      final granted = await _locationService.requestLocationPermission();
+      
+      if (kDebugMode) {
+        print('📍 LOCATION: Permission request completed, granted: $granted');
+      }
+      
+      state = state.copyWith(hasPermission: granted);
+      return granted;
+    } catch (e) {
+      if (kDebugMode) {
+        print('📍 LOCATION ERROR: Permission request failed: $e');
+      }
+      state = state.copyWith(hasPermission: false, error: e.toString());
+      return false;
+    }
   }
 
   Future<void> getCurrentLocation() async {
+    if (kDebugMode) {
+      print('📍 LOCATION: Starting getCurrentLocation...');
+    }
+    
     try {
       state = state.copyWith(error: null);
-      final position = await _locationService.getCurrentPosition();
+      
+      if (kDebugMode) {
+        print('📍 LOCATION: Calling location service getCurrentPosition...');
+      }
+      
+      Position? position;
+      try {
+        position = await _locationService.getCurrentPosition();
+      } catch (locationError) {
+        if (kDebugMode) {
+          print('📍 LOCATION: Location service call failed: $locationError');
+        }
+        // Set error and continue
+        state = state.copyWith(error: 'Location service failed: $locationError');
+        return;
+      }
+      
+      if (kDebugMode) {
+        print('📍 LOCATION: getCurrentPosition completed, position: ${position != null ? 'available' : 'null'}');
+        if (position != null) {
+          print('📍 LOCATION: Position details - lat: ${position.latitude}, lon: ${position.longitude}, accuracy: ${position.accuracy}');
+        }
+      }
+      
       if (position != null) {
+        if (kDebugMode) {
+          print('📍 LOCATION: About to update state with position...');
+        }
+        
         state = state.copyWith(currentPosition: position);
+        
+        if (kDebugMode) {
+          print('📍 LOCATION: State updated successfully');
+          print('📍 LOCATION: Current state position: ${state.currentPosition?.latitude}, ${state.currentPosition?.longitude}');
+        }
+      } else {
+        if (kDebugMode) {
+          print('📍 LOCATION: Position is null, not updating state');
+        }
       }
     } catch (e) {
-      state = state.copyWith(error: e.toString());
       if (kDebugMode) {
-        print('❌ Failed to get current location: $e');
+        print('📍 LOCATION ERROR: getCurrentLocation failed: $e');
+        print('📍 LOCATION ERROR: Stack trace: ${StackTrace.current}');
       }
+      state = state.copyWith(error: e.toString());
+    }
+    
+    if (kDebugMode) {
+      print('📍 LOCATION: getCurrentLocation method completed');
     }
   }
 
@@ -199,4 +261,20 @@ final isTrackingProvider = Provider<bool>((ref) {
 // Active campaign location provider
 final activeCampaignLocationProvider = Provider<String?>((ref) {
   return ref.watch(locationProvider).activeCampaignId;
+});
+
+// Enhanced location data providers
+final totalDistanceProvider = Provider<double>((ref) {
+  final locationService = ref.watch(locationServiceProvider);
+  return locationService.totalDistance;
+});
+
+final isOnlineProvider = Provider<bool>((ref) {
+  final locationService = ref.watch(locationServiceProvider);
+  return locationService.isOnline;
+});
+
+final unsyncedLocationCountProvider = Provider<int>((ref) {
+  final locationService = ref.watch(locationServiceProvider);
+  return locationService.unsyncedLocationCount;
 });

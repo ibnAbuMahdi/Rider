@@ -17,13 +17,13 @@ class ProfileScreen extends ConsumerWidget {
         actions: [
           PopupMenuButton(
             itemBuilder: (context) => [
-              PopupMenuItem(
+              const PopupMenuItem(
                 value: 'logout',
                 child: Row(
                   children: [
-                    const Icon(Icons.logout, color: AppColors.error),
-                    const SizedBox(width: 8),
-                    const Text('Logout'),
+                    Icon(Icons.logout, color: AppColors.error),
+                    SizedBox(width: 8),
+                    Text('Logout'),
                   ],
                 ),
               ),

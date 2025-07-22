@@ -1,15 +1,13 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
+import 'package:stika_rider/src/core/models/payment_summary.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/campaign_provider.dart';
 import '../../../core/providers/location_provider.dart';
 import '../../../core/providers/earnings_provider.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/models/campaign.dart' as models;
-import '../../../core/models/campaign.dart' show CampaignStatus;
-import '../../location/widgets/location_status_widget.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -19,14 +17,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  gmaps.GoogleMapController? _mapController;
-  Set<gmaps.Marker> _markers = {};
-  Set<gmaps.Circle> _circles = {};
-  bool _showMap = true;
   bool _isInitialLoading = true;
-
-  // Default Lagos coordinates
-  static const gmaps.LatLng _defaultLocation = gmaps.LatLng(6.5244, 3.3792);
 
   @override
   void initState() {
@@ -39,33 +30,52 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _loadInitialData() async {
+    if (kDebugMode) {
+      print('🏠 HOME SCREEN: Starting initial data load');
+      print('🏠 Timestamp: ${DateTime.now().toIso8601String()}');
+    }
+    
     try {
       // Load data sequentially to avoid race conditions and API overload
       // Each operation is wrapped in try-catch to prevent any single failure from crashing the app
       
       // 1. Load location data first (most critical)
+      if (kDebugMode) print('🏠 Step 1: Loading location data...');
       await _loadLocationData();
       
       // Small delay to avoid overwhelming the backend
+      if (kDebugMode) print('🏠 Step 2: Waiting 300ms before campaigns...');
       await Future.delayed(const Duration(milliseconds: 300));
       
       // 2. Load campaign data
-      await _loadCampaignData();
+      if (kDebugMode) print('🏠 Step 3: Loading campaign data...');
+      // await _loadCampaignData();
       
-      // Small delay to avoid overwhelming the backend
-      await Future.delayed(const Duration(milliseconds: 300));
+      // // Small delay to avoid overwhelming the backend
+      // if (kDebugMode) print('🏠 Step 4: Waiting 300ms before earnings...');
+      // await Future.delayed(const Duration(milliseconds: 300));
       
-      // 3. Load earnings data last (least critical for initial display)
-      await _loadEarningsData();
+      // // 3. Load earnings data last (least critical for initial display)
+      // if (kDebugMode) print('🏠 Step 5: Loading earnings data...');
+      // await _loadEarningsData();
       
-      // Update map markers after all data is loaded
+      // Update state after all data is loaded
       if (mounted) {
-        _updateMapMarkers();
+        if (kDebugMode) print('🏠 Step 6: Setting loading to false...');
         setState(() {
           _isInitialLoading = false;
         });
       }
+      
+      if (kDebugMode) print('🏠 HOME SCREEN: Initial data load completed successfully');
     } catch (e) {
+      if (kDebugMode) {
+        print('🏠 HOME SCREEN ERROR: Initial data load failed');
+        print('🏠 Error: $e');
+        print('🏠 Error Type: ${e.runtimeType}');
+        print('🏠 Stack Trace: ${StackTrace.current}');
+      }
+      
       // Handle errors gracefully - don't crash the app
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -83,21 +93,59 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Future<void> _loadLocationData() async {
     try {
-      // Load location data with timeout to prevent hanging
-      await ref.read(locationProvider.notifier).requestPermissions().timeout(Duration(seconds: 10));
-      await ref.read(locationProvider.notifier).getCurrentLocation().timeout(Duration(seconds: 10));
-    } catch (e) {
+      if (kDebugMode) {
+        print('🏠 LOCATION: Starting requestPermissions...');
+      }
+      
+      // Wrap each call individually with timeout and error handling
+      try {
+        final permissionResult = await ref.read(locationProvider.notifier).requestPermissions();
+        
+        if (kDebugMode) {
+          print('🏠 LOCATION: requestPermissions completed, starting getCurrentLocation...');
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('🏠 LOCATION ERROR: requestPermissions failed: $e');
+        }
+        return; // Skip getCurrentLocation if permissions failed
+      }
+      
+      try {
+        await ref.read(locationProvider.notifier).getCurrentLocation()
+            .timeout(const Duration(seconds: 20), onTimeout: () {
+          if (kDebugMode) {
+            print('🏠 LOCATION: getCurrentLocation timed out after 20 seconds');
+          }
+          throw TimeoutException('Location request timed out', const Duration(seconds: 20));
+        });
+        
+        if (kDebugMode) {
+          print('🏠 LOCATION: getCurrentLocation completed successfully');
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('🏠 LOCATION ERROR: getCurrentLocation failed: $e');
+        }
+      }
+      
+    } catch (e, stackTrace) {
       // Location errors are non-critical - continue without location
       if (kDebugMode) {
-        print('Location loading failed (non-critical): $e');
+        print('🏠 LOCATION FATAL ERROR: $e');
+        print('🏠 LOCATION STACK: $stackTrace');
       }
+    }
+    
+    if (kDebugMode) {
+      print('🏠 LOCATION: _loadLocationData completed');
     }
   }
 
   Future<void> _loadCampaignData() async {
     try {
       // Load campaign data with timeout and error isolation
-      await ref.read(campaignProvider.notifier).refresh().timeout(Duration(seconds: 15));
+      await ref.read(campaignProvider.notifier).refresh().timeout(const Duration(seconds: 15));
     } catch (e) {
       // Campaign errors are non-critical - continue with cached data
       if (kDebugMode) {
@@ -109,7 +157,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Future<void> _loadEarningsData() async {
     try {
       // Load earnings data with timeout and error isolation
-      await ref.read(earningsProvider.notifier).refresh().timeout(Duration(seconds: 15));
+      await ref.read(earningsProvider.notifier).refresh().timeout(const Duration(seconds: 15));
     } catch (e) {
       // Earnings errors are non-critical - continue with cached data
       if (kDebugMode) {
@@ -118,103 +166,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
-  void _updateMapMarkers() {
-    try {
-      if (!mounted) return;
-      
-      final campaigns = ref.read(campaignProvider).campaigns;
-      final currentPosition = ref.read(locationProvider).currentPosition;
-      
-      final Set<gmaps.Marker> markers = {};
-      final Set<gmaps.Circle> circles = {};
-
-    // Add campaign markers and geofences
-    for (final campaign in campaigns) {
-      // Add markers and circles for each geofence in the campaign
-      for (int i = 0; i < campaign.geofences.length; i++) {
-        final geofence = campaign.geofences[i];
-        
-        final marker = gmaps.Marker(
-          markerId: gmaps.MarkerId('${campaign.id}_geofence_$i'),
-          position: gmaps.LatLng(
-            geofence.centerLatitude,
-            geofence.centerLongitude,
-          ),
-          icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
-            campaign.status == CampaignStatus.running 
-              ? gmaps.BitmapDescriptor.hueGreen 
-              : gmaps.BitmapDescriptor.hueOrange,
-          ),
-          infoWindow: gmaps.InfoWindow(
-            title: campaign.name,
-            snippet: '₦${campaign.ratePerHour.toStringAsFixed(0)}/hr • ${campaign.currentRiders}/${campaign.maxRiders} riders',
-            onTap: () => _showCampaignDetails(campaign),
-          ),
-        );
-        markers.add(marker);
-
-        // Add geofence circle
-        final circle = gmaps.Circle(
-          circleId: gmaps.CircleId('${campaign.id}_geofence_$i'),
-          center: gmaps.LatLng(
-            geofence.centerLatitude,
-            geofence.centerLongitude,
-          ),
-          radius: geofence.radius,
-          fillColor: AppColors.primary.withOpacity(0.1),
-          strokeColor: AppColors.primary,
-          strokeWidth: 2,
-        );
-        circles.add(circle);
-      }
-    }
-
-    // Add current location marker
-    if (currentPosition != null) {
-      final currentLocationMarker = gmaps.Marker(
-        markerId: const gmaps.MarkerId('current_location'),
-        position: gmaps.LatLng(
-          currentPosition.latitude,
-          currentPosition.longitude,
-        ),
-        icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(gmaps.BitmapDescriptor.hueBlue),
-        infoWindow: const gmaps.InfoWindow(
-          title: 'Your Location',
-          snippet: 'Current position',
-        ),
-      );
-      markers.add(currentLocationMarker);
-    }
-
-      if (mounted) {
-        setState(() {
-          _markers = markers;
-          _circles = circles;
-        });
-      }
-    } catch (e) {
-      // Handle marker update errors silently
-      if (mounted) {
-        setState(() {
-          _markers = {};
-          _circles = {};
-        });
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    if (kDebugMode) {
+      print('🏠 HOME BUILD: Starting build method');
+    }
+    
     // Show loading screen during initial data load
     if (_isInitialLoading) {
-      return Scaffold(
+      if (kDebugMode) {
+        print('🏠 HOME BUILD: Showing loading screen');
+      }
+      return const Scaffold(
         backgroundColor: AppColors.background,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const CircularProgressIndicator(),
-              const SizedBox(height: 16),
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
               Text(
                 'Loading your dashboard...',
                 style: TextStyle(
@@ -228,13 +198,73 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       );
     }
 
-    final authState = ref.watch(authProvider);
-    final campaignState = ref.watch(campaignProvider);
-    final locationState = ref.watch(locationProvider);
-    final paymentSummary = ref.watch(paymentSummaryProvider);
+    if (kDebugMode) {
+      print('🏠 HOME BUILD: Loading providers...');
+    }
 
-    final rider = authState.rider;
-    final activeCampaign = campaignState.currentCampaign;
+    // Load providers one by one with error handling
+    late final AuthState authState;
+    late final CampaignState campaignState;
+    late final LocationState locationState;
+    late final PaymentSummary? paymentSummary;
+    late final rider;
+    late final activeCampaign;
+
+    try {
+      if (kDebugMode) print('🏠 HOME BUILD: Loading authProvider...');
+      authState = ref.watch(authProvider);
+      
+      if (kDebugMode) print('🏠 HOME BUILD: Loading campaignProvider...');
+      campaignState = ref.watch(campaignProvider);
+      
+      if (kDebugMode) print('🏠 HOME BUILD: Loading locationProvider...');
+      locationState = ref.watch(locationProvider);
+      
+      if (kDebugMode) print('🏠 HOME BUILD: Loading paymentSummaryProvider...');
+      paymentSummary = ref.watch(paymentSummaryProvider);
+
+      rider = authState.rider;
+      activeCampaign = campaignState.currentCampaign;
+      
+      if (kDebugMode) {
+        print('🏠 HOME BUILD: All providers loaded successfully');
+        print('🏠 Rider: ${rider?.firstName ?? 'null'}');
+        print('🏠 Campaigns: ${campaignState.campaigns.length}');
+        print('🏠 Payment Summary: ${paymentSummary != null ? 'loaded' : 'null'}');
+      }
+    } catch (e, stack) {
+      if (kDebugMode) {
+        print('🚨 HOME BUILD ERROR: Failed to load providers');
+        print('🚨 Error: $e');
+        print('🚨 Stack: $stack');
+      }
+      
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 64, color: Colors.red),
+              const SizedBox(height: 16),
+              const Text('Error loading data'),
+              const SizedBox(height: 8),
+              Text('$e'),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    _isInitialLoading = true;
+                  });
+                  _loadInitialData();
+                },
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -261,533 +291,115 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       body: RefreshIndicator(
         onRefresh: _loadInitialData,
-        child: CustomScrollView(
-          slivers: [
-            // Quick Stats
-            if (paymentSummary != null)
-              SliverToBoxAdapter(
-                child: Container(
-                  margin: const EdgeInsets.all(16),
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 10,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _buildStatItem(
-                          'This Week',
-                          paymentSummary.formattedThisWeekEarnings,
-                          Icons.calendar_view_week,
-                          AppColors.success,
-                        ),
-                      ),
-                      Container(
-                        width: 1,
-                        height: 40,
-                        color: AppColors.textTertiary,
-                      ),
-                      Expanded(
-                        child: _buildStatItem(
-                          'Pending',
-                          paymentSummary.formattedPendingEarnings,
-                          Icons.schedule,
-                          AppColors.warning,
-                        ),
-                      ),
-                      Container(
-                        width: 1,
-                        height: 40,
-                        color: AppColors.textTertiary,
-                      ),
-                      Expanded(
-                        child: _buildStatItem(
-                          'Total Paid',
-                          paymentSummary.formattedPaidEarnings,
-                          Icons.check_circle,
-                          AppColors.primary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-            // Active Campaign Card
-            if (activeCampaign != null)
-              SliverToBoxAdapter(
-                child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 16),
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [AppColors.success, AppColors.success.withOpacity(0.8)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Debug info
+                if (kDebugMode)
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.campaign, color: Colors.white),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Active Campaign',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const Spacer(),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              locationState.isTracking ? 'TRACKING' : 'PAUSED',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
+                          Text('Debug Info:', style: Theme.of(context).textTheme.titleMedium),
+                          Text('Rider: ${rider?.firstName ?? 'null'}'),
+                          Text('Campaigns: ${campaignState.campaigns.length}'),
+                          Text('Payment Summary: ${paymentSummary != null ? 'loaded' : 'null'}'),
+                          Text('Location: ${locationState.currentPosition != null ? 'available' : 'unavailable'}'),
+                          if (locationState.currentPosition != null) ...[
+                            Text('  Coordinates: ${locationState.currentPosition!.latitude.toStringAsFixed(4)}, ${locationState.currentPosition!.longitude.toStringAsFixed(4)}'),
+                            Text('  Accuracy: ${locationState.currentPosition!.accuracy.toStringAsFixed(1)}m'),
+                          ],
+                          Text('Permission: ${locationState.hasPermission ? 'granted' : 'denied'}'),
+                          Text('Tracking: ${locationState.isTracking ? 'active' : 'inactive'}'),
+                          if (locationState.error != null)
+                            Text('Error: ${locationState.error}', style: const TextStyle(color: Colors.red, fontSize: 12)),
                         ],
                       ),
-                      const SizedBox(height: 12),
-                      Text(
-                        activeCampaign.name,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '₦${activeCampaign.ratePerHour.toStringAsFixed(0)}/hour',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
+                    ),
+                  ),
+                
+                // Quick Stats (simplified)
+                if (paymentSummary != null)
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: () => _navigateToVerification(activeCampaign),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: AppColors.success,
-                              ),
-                              child: const Text('Verify Now'),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          ElevatedButton(
-                            onPressed: () => _stopCampaign(activeCampaign),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white.withOpacity(0.2),
-                              foregroundColor: Colors.white,
-                            ),
-                            child: const Text('Stop'),
-                          ),
+                          Text('Earnings Summary', style: Theme.of(context).textTheme.titleMedium),
+                          const SizedBox(height: 8),
+                          Text('This Week: ${paymentSummary.formattedThisWeekEarnings}'),
+                          Text('Pending: ${paymentSummary.formattedPendingEarnings}'),
+                          Text('Total Paid: ${paymentSummary.formattedPaidEarnings}'),
                         ],
                       ),
-                    ],
+                    ),
+                  ),
+                
+                // Campaigns info
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Campaigns', style: Theme.of(context).textTheme.titleMedium),
+                        const SizedBox(height: 8),
+                        if (campaignState.isLoading)
+                          const Text('Loading campaigns...')
+                        else if (campaignState.campaigns.isEmpty)
+                          const Text('No campaigns available')
+                        else
+                          Text('${campaignState.campaigns.length} campaigns available'),
+                        
+                        if (activeCampaign != null) ...[
+                          const SizedBox(height: 8),
+                          Text('Active: ${activeCampaign.name}'),
+                        ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-
-            // Location Status
-            const SliverToBoxAdapter(
-              child: LocationStatusWidget(),
-            ),
-
-            // Map/List Toggle
-            SliverToBoxAdapter(
-              child: Container(
-                margin: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    const Text(
-                      'Nearby Campaigns',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const Spacer(),
-                    SegmentedButton<bool>(
-                      segments: const [
-                        ButtonSegment<bool>(
-                          value: true,
-                          icon: Icon(Icons.map, size: 16),
-                          label: Text('Map'),
-                        ),
-                        ButtonSegment<bool>(
-                          value: false,
-                          icon: Icon(Icons.list, size: 16),
-                          label: Text('List'),
+                
+                // Quick actions
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Quick Actions', style: Theme.of(context).textTheme.titleMedium),
+                        const SizedBox(height: 8),
+                        ElevatedButton(
+                          onPressed: _showProfile,
+                          child: const Text('View Profile'),
                         ),
                       ],
-                      selected: {_showMap},
-                      onSelectionChanged: (Set<bool> selected) {
-                        setState(() {
-                          _showMap = selected.first;
-                        });
-                      },
                     ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
-
-            // Map or Campaign List
-            SliverToBoxAdapter(
-              child: Container(
-                height: 300,
-                margin: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.textTertiary),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: _showMap ? _buildMapView() : _buildCampaignListView(),
-                ),
-              ),
-            ),
-
-            // Quick Actions
-            SliverToBoxAdapter(
-              child: _buildQuickActions(),
-            ),
-
-            // Bottom padding
-            const SliverToBoxAdapter(
-              child: SizedBox(height: 100),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatItem(String label, String value, IconData icon, Color color) {
-    return Column(
-      children: [
-        Icon(icon, color: color, size: 20),
-        const SizedBox(height: 8),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: AppColors.textSecondary,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMapView() {
-    try {
-      final currentPosition = ref.watch(locationProvider).currentPosition;
-      
-      return gmaps.GoogleMap(
-        initialCameraPosition: gmaps.CameraPosition(
-          target: currentPosition != null 
-            ? gmaps.LatLng(currentPosition.latitude, currentPosition.longitude)
-            : _defaultLocation,
-          zoom: 12,
-        ),
-        onMapCreated: (gmaps.GoogleMapController controller) {
-          try {
-            _mapController = controller;
-            // Defer marker updates to avoid blocking UI
-            Future.microtask(() => _updateMapMarkers());
-          } catch (e) {
-            // Handle map controller errors
-          }
-        },
-        markers: _markers,
-        circles: _circles,
-        myLocationEnabled: false, // Disable to reduce load
-        myLocationButtonEnabled: false,
-        zoomControlsEnabled: false,
-        mapToolbarEnabled: false,
-        buildingsEnabled: false,
-        trafficEnabled: false,
-        liteModeEnabled: true, // Enable lite mode for better performance
-      );
-    } catch (e) {
-      // Fallback UI if Google Maps fails
-      return Container(
-        color: AppColors.background,
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.map_outlined,
-                size: 48,
-                color: AppColors.textSecondary.withOpacity(0.5),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Map not available',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              ElevatedButton(
-                onPressed: () => setState(() {}),
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-  }
-
-  Widget _buildCampaignListView() {
-    final campaigns = ref.watch(campaignProvider).campaigns;
-    
-    if (campaigns.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.campaign_outlined,
-              size: 48,
-              color: AppColors.textSecondary.withOpacity(0.5),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'No campaigns nearby',
-              style: TextStyle(
-                fontSize: 16,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(8),
-      itemCount: campaigns.length,
-      itemBuilder: (context, index) {
-        final campaign = campaigns[index];
-        return Card(
-          margin: const EdgeInsets.symmetric(vertical: 4),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: campaign.status == 'active' 
-                ? AppColors.success 
-                : AppColors.warning,
-              child: const Icon(Icons.campaign, color: Colors.white),
-            ),
-            title: Text(
-              campaign.name,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            subtitle: Text('₦${campaign.ratePerHour.toStringAsFixed(0)}/hr • ${campaign.currentRiders}/${campaign.maxRiders} riders'),
-            trailing: Icon(
-              Icons.arrow_forward_ios,
-              size: 16,
-              color: AppColors.textSecondary,
-            ),
-            onTap: () => _showCampaignDetails(campaign),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildQuickActions() {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Quick Actions',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildActionButton(
-                  icon: Icons.campaign,
-                  label: 'Browse Campaigns',
-                  onTap: () => Navigator.pushNamed(context, '/campaigns'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildActionButton(
-                  icon: Icons.account_balance_wallet,
-                  label: 'My Earnings',
-                  onTap: () => Navigator.pushNamed(context, '/earnings'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildActionButton(
-                  icon: Icons.help_outline,
-                  label: 'Support',
-                  onTap: () => _contactSupport(),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildActionButton(
-                  icon: Icons.person,
-                  label: 'Profile',
-                  onTap: () => _showProfile(),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            border: Border.all(color: AppColors.textTertiary),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            children: [
-              Icon(icon, color: AppColors.primary, size: 24),
-              const SizedBox(height: 8),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
           ),
         ),
       ),
     );
-  }
-
-  void _showCampaignDetails(models.Campaign campaign) {
-    // Navigate to campaign details
-    Navigator.pushNamed(context, '/campaign-details', arguments: campaign);
-  }
-
-  void _navigateToVerification(models.Campaign campaign) {
-    Navigator.pushNamed(context, '/verification', arguments: campaign);
-  }
-
-  Future<void> _stopCampaign(models.Campaign campaign) async {
-    // Stop location tracking
-    await ref.read(locationProvider.notifier).stopTracking();
-    
-    // Leave campaign
-    await ref.read(campaignProvider.notifier).leaveCampaign();
-    
-    // Show confirmation
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Left ${campaign.name} campaign'),
-          backgroundColor: AppColors.success,
-        ),
-      );
-    }
   }
 
   void _showNotifications() {
     // Navigate to notifications screen
-    Navigator.pushNamed(context, '/notifications');
+    if (kDebugMode) print('🏠 HOME: Navigate to notifications');
+    // Navigator.pushNamed(context, '/notifications');
   }
 
   void _showProfile() {
     // Navigate to profile screen
-    Navigator.pushNamed(context, '/profile');
-  }
-
-  void _contactSupport() {
-    // Open WhatsApp or support contact
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Contact Support'),
-        content: const Text('Need help? Contact our support team via WhatsApp'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // Open WhatsApp or call support
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.success,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('WhatsApp Support'),
-          ),
-        ],
-      ),
-    );
+    if (kDebugMode) print('🏠 HOME: Navigate to profile');
+    // Navigator.pushNamed(context, '/profile');
   }
 }

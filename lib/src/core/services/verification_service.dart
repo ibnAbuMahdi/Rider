@@ -96,7 +96,7 @@ class VerificationService {
           error: errorData['message'] ?? 'Invalid verification data',
         );
       } else if (e.response?.statusCode == 413) {
-        return VerificationResult(
+        return const VerificationResult(
           success: false,
           error: 'Image file too large. Please try again.',
         );

@@ -140,7 +140,7 @@ class LocationApiService {
   Future<void> syncAllLocationData() async {
     try {
       // Get unsynced locations
-      final unsyncedLocations = await HiveService.getUnsyncedLocations();
+      final unsyncedLocations = HiveService.getUnsyncedLocations();
       if (unsyncedLocations.isNotEmpty) {
         final success = await uploadLocations(unsyncedLocations);
         if (success) {

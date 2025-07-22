@@ -21,21 +21,21 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   bool _isCompleting = false;
 
   final List<OnboardingPage> _pages = [
-    OnboardingPage(
+    const OnboardingPage(
       title: 'Welcome to Stika!',
       subtitle: 'Earn money while you ride your keke',
       description: 'Join thousands of riders making extra income by displaying campaign stickers on their tricycles.',
       icon: Icons.directions_bike,
       color: AppColors.primary,
     ),
-    OnboardingPage(
+    const OnboardingPage(
       title: 'Simple & Easy',
       subtitle: 'Just ride and earn',
       description: 'Put sticker for back of your keke, ride like normal, take photos when we ask. That\'s all!',
       icon: Icons.camera_alt,
       color: AppColors.secondary,
     ),
-    OnboardingPage(
+    const OnboardingPage(
       title: 'Get Paid Weekly',
       subtitle: 'Money reach your account every Friday',
       description: 'No stress, no wahala. Your money go enter your bank account every Friday before 12pm.',

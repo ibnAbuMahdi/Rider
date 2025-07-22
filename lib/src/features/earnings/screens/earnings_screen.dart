@@ -164,7 +164,7 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen>
             color: AppColors.textSecondary.withOpacity(0.5),
           ),
           const SizedBox(height: 16),
-          Text(
+          const Text(
             'No Earnings Yet',
             style: TextStyle(
               fontSize: 18,
@@ -296,7 +296,7 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen>
         children: [
           Text(
             label,
-            style: TextStyle(
+            style: const TextStyle(
               color: AppColors.textSecondary,
               fontWeight: FontWeight.w500,
             ),

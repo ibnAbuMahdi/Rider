@@ -21,7 +21,7 @@ void main() async {
   await _initializeApp();
   
   runApp(
-    ProviderScope(
+    const ProviderScope(
       child: StikaRiderApp(),
     ),
   );

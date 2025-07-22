@@ -49,16 +49,16 @@ class CurrentCampaignCard extends StatelessWidget {
                     color: AppColors.success,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Row(
+                  child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.check_circle,
                         color: Colors.white,
                         size: 16,
                       ),
-                      const SizedBox(width: 4),
-                      const Text(
+                      SizedBox(width: 4),
+                      Text(
                         'ACTIVE',
                         style: TextStyle(
                           color: Colors.white,
@@ -73,13 +73,13 @@ class CurrentCampaignCard extends StatelessWidget {
                 PopupMenuButton(
                   icon: const Icon(Icons.more_vert),
                   itemBuilder: (context) => [
-                    PopupMenuItem(
+                    const PopupMenuItem(
                       value: 'leave',
                       child: Row(
                         children: [
-                          const Icon(Icons.exit_to_app, color: AppColors.error),
-                          const SizedBox(width: 8),
-                          const Text('Leave Campaign'),
+                          Icon(Icons.exit_to_app, color: AppColors.error),
+                          SizedBox(width: 8),
+                          Text('Leave Campaign'),
                         ],
                       ),
                     ),
@@ -195,7 +195,7 @@ class CurrentCampaignCard extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            const Text(
                               'Campaign Duration',
                               style: TextStyle(
                                 fontSize: 12,
@@ -205,7 +205,7 @@ class CurrentCampaignCard extends StatelessWidget {
                             ),
                             Text(
                               '${_formatDate(campaign.startDate)} - ${_formatDate(campaign.endDate)}',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 14,
                                 color: AppColors.info,
                                 fontWeight: FontWeight.bold,
@@ -218,7 +218,7 @@ class CurrentCampaignCard extends StatelessWidget {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Text(
+                            const Text(
                               'Time left',
                               style: TextStyle(
                                 fontSize: 12,
@@ -227,7 +227,7 @@ class CurrentCampaignCard extends StatelessWidget {
                             ),
                             Text(
                               _formatDuration(campaign.timeRemaining),
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 14,
                                 color: AppColors.info,
                                 fontWeight: FontWeight.bold,
@@ -269,7 +269,7 @@ class CurrentCampaignCard extends StatelessWidget {
               const SizedBox(width: 4),
               Text(
                 label,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 11,
                   color: AppColors.textSecondary,
                   fontWeight: FontWeight.w500,

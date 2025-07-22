@@ -61,7 +61,7 @@ class CampaignCard extends StatelessWidget {
   Widget _buildStickerPreview() {
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-      child: Container(
+      child: SizedBox(
         height: 120,
         width: double.infinity,
         child: campaign.stickerImageUrl.isNotEmpty
@@ -190,7 +190,7 @@ class CampaignCard extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           label,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 11,
             color: AppColors.textSecondary,
             fontWeight: FontWeight.w500,
@@ -220,7 +220,7 @@ class CampaignCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(
+          const Icon(
             Icons.trending_up,
             color: AppColors.earnings,
             size: 20,
@@ -229,7 +229,7 @@ class CampaignCard extends StatelessWidget {
           Expanded(
             child: Text(
               'You fit make like ${AppConstants.currencySymbol}${campaign.estimatedWeeklyEarnings.toStringAsFixed(0)} every week',
-              style: TextStyle(
+              style: const TextStyle(
                 color: AppColors.earnings,
                 fontWeight: FontWeight.w600,
                 fontSize: 13,

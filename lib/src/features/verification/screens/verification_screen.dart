@@ -145,7 +145,7 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen>
 
   void _startTimeoutTimer() {
     _timeoutTimer = Timer(
-      Duration(minutes: AppConstants.verificationTimeoutMinutes),
+      const Duration(minutes: AppConstants.verificationTimeoutMinutes),
       () {
         if (mounted) {
           _showTimeoutDialog();
@@ -250,12 +250,12 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen>
                 color: AppColors.error,
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: Row(
+              child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.warning, color: Colors.white, size: 16),
-                  const SizedBox(width: 8),
-                  const Text(
+                  Icon(Icons.warning, color: Colors.white, size: 16),
+                  SizedBox(width: 8),
+                  Text(
                     'VERIFICATION REQUIRED NOW!',
                     style: TextStyle(
                       color: Colors.white,
@@ -283,7 +283,7 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen>
             
             // Countdown timer
             CountdownTimerWidget(
-              duration: Duration(minutes: AppConstants.verificationTimeoutMinutes),
+              duration: const Duration(minutes: AppConstants.verificationTimeoutMinutes),
               onTimeout: _showTimeoutDialog,
             ),
           ],
@@ -519,11 +519,11 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen>
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: Row(
+        title: const Row(
           children: [
-            const Icon(Icons.check_circle, color: AppColors.success),
-            const SizedBox(width: 8),
-            const Text('Success!'),
+            Icon(Icons.check_circle, color: AppColors.success),
+            SizedBox(width: 8),
+            Text('Success!'),
           ],
         ),
         content: const Text(

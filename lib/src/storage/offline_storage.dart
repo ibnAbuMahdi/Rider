@@ -66,16 +66,17 @@ class OfflineStorage {
   static Future<void> syncVerifications() async {
     try {
       final box = await Hive.openBox<VerificationRequest>('verification_queue');
-      final unsynced = box.values.where((v) => !v.synced).toList();
+      final unsynced = box.values.where((v) => !v.isSynced).toList();
       
       logger.i('Syncing ${unsynced.length} verification requests');
       
       for (final verification in unsynced) {
         try {
-          final result = await ApiService.submitVerification(verification);
+          final apiService = ApiService.instance;
+          final result = await apiService.submitVerification(verification);
           if (result['success'] == true) {
-            verification.synced = true;
-            await verification.save();
+            final updated = verification.copyWith(isSynced: true);
+            await box.put(verification.id, updated);
             logger.d('Verification ${verification.id} synced');
           }
         } catch (e) {
@@ -90,7 +91,7 @@ class OfflineStorage {
   static Future<void> syncLocations() async {
     try {
       final box = await Hive.openBox<LocationRecord>('location_cache');
-      final unsynced = box.values.where((l) => !l.synced).toList();
+      final unsynced = box.values.where((l) => !l.isSynced).toList();
       
       logger.i('Syncing ${unsynced.length} location records');
       
@@ -100,11 +101,12 @@ class OfflineStorage {
         final batch = unsynced.skip(i).take(batchSize).toList();
         
         try {
-          final result = await ApiService.syncLocationBatch(batch);
+          final apiService = ApiService.instance;
+          final result = await apiService.syncLocationBatch(batch);
           if (result['success'] == true) {
             for (final location in batch) {
-              location.synced = true;
-              await location.save();
+              final updated = location.copyWith(isSynced: true);
+              await box.put(location.id, updated);
             }
             logger.d('Synced batch of ${batch.length} locations');
           }
@@ -120,16 +122,39 @@ class OfflineStorage {
   static Future<void> syncEarnings() async {
     try {
       final box = await Hive.openBox<Earning>('earnings_history');
-      final unsynced = box.values.where((e) => !e.synced).toList();
+      final unsynced = box.values.where((e) => !e.isSynced).toList();
       
       logger.i('Syncing ${unsynced.length} earnings records');
       
       for (final earning in unsynced) {
         try {
-          final result = await ApiService.syncEarning(earning);
+          final apiService = ApiService.instance;
+          final result = await apiService.syncEarning(earning);
           if (result['success'] == true) {
-            earning.synced = true;
-            await earning.save();
+            // Create new earning with isSynced = true since it's final
+            final newEarning = Earning(
+              id: earning.id,
+              riderId: earning.riderId,
+              campaignId: earning.campaignId,
+              campaignTitle: earning.campaignTitle,
+              amount: earning.amount,
+              currency: earning.currency,
+              earningType: earning.earningType,
+              periodStart: earning.periodStart,
+              periodEnd: earning.periodEnd,
+              status: earning.status,
+              metadata: earning.metadata,
+              createdAt: earning.createdAt,
+              paidAt: earning.paidAt,
+              paymentMethod: earning.paymentMethod,
+              paymentReference: earning.paymentReference,
+              notes: earning.notes,
+              hoursWorked: earning.hoursWorked,
+              verificationsCompleted: earning.verificationsCompleted,
+              distanceCovered: earning.distanceCovered,
+              isSynced: true,
+            );
+            await box.put(earning.id, newEarning);
             logger.d('Earning ${earning.id} synced');
           }
         } catch (e) {
@@ -150,7 +175,8 @@ class OfflineStorage {
       
       for (final log in unsynced) {
         try {
-          final result = await ApiService.syncSMSLog(log);
+          final apiService = ApiService.instance;
+          final result = await apiService.syncSMSLog(log);
           if (result['success'] == true) {
             log.synced = true;
             await log.save();
@@ -187,15 +213,16 @@ class OfflineStorage {
   }
 
   static Future<void> processOfflineAction(OfflineAction action) async {
+    final apiService = ApiService.instance;
     switch (action.type) {
       case 'verification':
-        await ApiService.submitVerification(action.data);
+        await apiService.submitVerification(action.data);
         break;
       case 'location':
-        await ApiService.syncLocationBatch([action.data]);
+        await apiService.syncLocationBatch([action.data]);
         break;
       case 'earnings':
-        await ApiService.syncEarning(action.data);
+        await apiService.syncEarning(action.data);
         break;
       default:
         logger.w('Unknown offline action type: ${action.type}');
@@ -228,7 +255,7 @@ class OfflineStorage {
 
       // Clear old SMS logs (keep last 30 days)
       final smsBox = await Hive.openBox<SMSLog>('sms_logs');
-      final cutoffDate = DateTime.now().subtract(Duration(days: 30));
+      final cutoffDate = DateTime.now().subtract(const Duration(days: 30));
       final oldLogs = smsBox.values
           .where((log) => log.timestamp.isBefore(cutoffDate))
           .toList();
@@ -241,13 +268,13 @@ class OfflineStorage {
       // Clear synced verification requests (keep last 100)
       final verificationBox = await Hive.openBox<VerificationRequest>('verification_queue');
       final syncedVerifications = verificationBox.values
-          .where((v) => v.synced)
+          .where((v) => v.isSynced)
           .toList();
       
       if (syncedVerifications.length > 100) {
         final toDelete = syncedVerifications.take(syncedVerifications.length - 100);
         for (final verification in toDelete) {
-          await verificationBox.delete(verification.key);
+          await verificationBox.delete(verification.id);
         }
         logger.i('Cleared ${toDelete.length} old verification requests');
       }
@@ -323,7 +350,7 @@ class OfflineActionAdapter extends TypeAdapter<OfflineAction> {
   }
 
   @override
-  bool get hashCode => typeId.hashCode;
+  int get hashCode => typeId.hashCode;
 
   @override
   bool operator ==(Object other) =>

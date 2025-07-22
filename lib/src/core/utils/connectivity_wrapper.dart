@@ -41,15 +41,15 @@ class ConnectivityWrapper extends ConsumerWidget {
               child: Container(
                 color: AppColors.error,
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                child: Row(
+                child: const Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.cloud_off,
                       color: Colors.white,
                       size: 16,
                     ),
-                    const SizedBox(width: 8),
-                    const Expanded(
+                    SizedBox(width: 8),
+                    Expanded(
                       child: Text(
                         'No internet connection. Some features may not work.',
                         style: TextStyle(

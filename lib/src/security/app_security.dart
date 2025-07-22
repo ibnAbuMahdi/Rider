@@ -104,8 +104,8 @@ class AppSecurity {
       
       // Store locally for later sync
       await _storage.write(
-        key: 'suspicious_activity_${timestamp}',
-        value: '${activityType}:${deviceId}',
+        key: 'suspicious_activity_$timestamp',
+        value: '$activityType:$deviceId',
       );
       
       logger.w('Suspicious activity reported: $activityType');
@@ -121,8 +121,8 @@ class AppSecurity {
       
       // Store locally for later sync
       await _storage.write(
-        key: 'competitor_app_${timestamp}',
-        value: '${packageName}:${deviceId}',
+        key: 'competitor_app_$timestamp',
+        value: '$packageName:$deviceId',
       );
       
       logger.i('Competitor app detected: $packageName');

@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../models/earning.dart';
 import '../models/payment_summary.dart';

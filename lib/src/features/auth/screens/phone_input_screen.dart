@@ -4,9 +4,7 @@ import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/providers/auth_provider.dart';
-import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/services/auth_service.dart';
 import '../../shared/widgets/loading_button.dart';
 import '../../shared/widgets/stika_logo.dart';
 

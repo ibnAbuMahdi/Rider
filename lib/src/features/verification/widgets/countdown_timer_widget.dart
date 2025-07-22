@@ -63,7 +63,7 @@ class _CountdownTimerWidgetState extends State<CountdownTimerWidget> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
+          const Icon(
             Icons.timer,
             color: Colors.white,
             size: 16,

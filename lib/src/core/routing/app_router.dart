@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -21,9 +22,21 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/auth/phone',
     redirect: (context, state) {
+      if (kDebugMode) {
+        print('🔄 ROUTER DEBUG: location=${state.matchedLocation}');
+      }
+      try {
+        final container = ProviderScope.containerOf(context);
+        final authState = container.read(authProvider);
+        
+        if (kDebugMode) {
+          print('🔄 AUTH STATE: isAuth=${authState.isAuthenticated}, rider=${authState.rider?.id}');
+        }
+	
+ 
       // Get auth state from container instead of watching to prevent rebuilds
-      final container = ProviderScope.containerOf(context);
-      final authState = container.read(authProvider);
+      //final container = ProviderScope.containerOf(context);
+      //final authState = container.read(authProvider);
       
       final isAuthenticated = authState.isAuthenticated;
       final isLoading = authState.isLoading;
@@ -73,6 +86,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
       
       return null;
+	  } catch (e) {
+		print('🔴 ROUTER ERROR: $e');
+		print('🔴 STACK: ${StackTrace.current}');
+		return '/auth/phone'; // Safe fallback
+	}
+
     },
     routes: [
       // Root route

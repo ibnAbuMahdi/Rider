@@ -30,6 +30,14 @@ class LocationService {
   // Enhanced location tracking variables
   final List<LocationRecord> _unsyncedLocations = [];
   double _totalDistance = 0.0;
+  
+  // Multi-geofence tracking
+  String? _currentGeofenceId;
+  Geofence? _currentGeofence;
+  final Map<String, double> _geofenceDistances = {}; // Track distance per geofence
+  final Map<String, double> _geofenceEarnings = {}; // Track earnings per geofence
+  final Map<String, DateTime> _geofenceEntryTimes = {}; // Track time spent in each geofence
+  final Map<String, Duration> _geofenceDurations = {}; // Total time per geofence
 
   static Future<void> initialize() async {
     try {
@@ -342,6 +350,14 @@ class LocationService {
       _activeCampaignId = campaignId;
       _activeCampaign = campaign;
       _totalDistance = 0.0;
+      
+      // Reset geofence tracking data
+      _currentGeofenceId = null;
+      _currentGeofence = null;
+      _geofenceDistances.clear();
+      _geofenceEarnings.clear();
+      _geofenceEntryTimes.clear();
+      _geofenceDurations.clear();
 
       // Enhanced location settings based on reference implementation
       const locationSettings = LocationSettings(
@@ -452,6 +468,14 @@ class LocationService {
       _activeCampaign = null;
       _wasInsideGeofence = false;
       
+      // Clear multi-geofence tracking data
+      _currentGeofenceId = null;
+      _currentGeofence = null;
+      _geofenceDistances.clear();
+      _geofenceEarnings.clear();
+      _geofenceEntryTimes.clear();
+      _geofenceDurations.clear();
+      
       // Try to sync any remaining unsynced locations
       if (_unsyncedLocations.isNotEmpty && _isOnline) {
         await _syncStoredLocations();
@@ -506,6 +530,15 @@ class LocationService {
         
         // Add to total distance traveled
         _totalDistance += distanceFromLast;
+        
+        // Add distance to current geofence if rider is inside one
+        if (_currentGeofenceId != null) {
+          _geofenceDistances[_currentGeofenceId!] = 
+              (_geofenceDistances[_currentGeofenceId!] ?? 0.0) + distanceFromLast;
+          
+          // Update earnings for current geofence
+          _updateGeofenceEarnings(_currentGeofenceId!, distanceFromLast);
+        }
         
         isMoving = distanceFromLast > AppConstants.movementThresholdMeters;
         
@@ -691,13 +724,16 @@ class LocationService {
     }
   }
 
-  // Check if rider is within campaign geofence
+  // Check if rider is within campaign geofence - enhanced for multi-geofence support
   void _checkGeofence() {
     if (_lastPosition == null || _activeCampaign == null) return;
 
-    // Check if rider is within any of the campaign's geofences
+    // Find which geofences the rider is currently inside
+    Geofence? activeGeofence;
+    String? activeGeofenceId;
     bool isInsideAnyGeofence = false;
     
+    // Check all geofences and find the highest priority one if multiple
     for (final geofence in _activeCampaign!.geofences) {
       final isInside = geofence.containsPoint(
         _lastPosition!.latitude,
@@ -706,60 +742,115 @@ class LocationService {
       
       if (isInside) {
         isInsideAnyGeofence = true;
-        break;
+        
+        // If no active geofence yet, or this one has higher priority
+        if (activeGeofence == null || 
+            (geofence.isHighPriority && !activeGeofence.isHighPriority) ||
+            (geofence.isHighPriority == activeGeofence.isHighPriority && 
+             (geofence.priority ?? 0) < (activeGeofence.priority ?? 0))) {
+          activeGeofence = geofence;
+          activeGeofenceId = geofence.id;
+        }
       }
     }
 
-    // Check for geofence violations
-    if (_wasInsideGeofence && !isInsideAnyGeofence) {
-      _onGeofenceExit();
-    } else if (!_wasInsideGeofence && isInsideAnyGeofence) {
-      _onGeofenceEnter();
+    // Check for geofence transitions
+    if (_currentGeofenceId != activeGeofenceId) {
+      // Exit current geofence if we were in one
+      if (_currentGeofenceId != null) {
+        _onGeofenceExit(_currentGeofenceId!, _currentGeofence);
+      }
+      
+      // Enter new geofence if we found one
+      if (activeGeofenceId != null && activeGeofence != null) {
+        _onGeofenceEnter(activeGeofenceId, activeGeofence);
+      }
+      
+      _currentGeofenceId = activeGeofenceId;
+      _currentGeofence = activeGeofence;
     }
 
     _wasInsideGeofence = isInsideAnyGeofence;
   }
 
-  // Handle rider entering geofence
-  void _onGeofenceEnter() {
+  // Handle rider entering geofence - enhanced for specific geofence tracking
+  void _onGeofenceEnter(String geofenceId, Geofence geofence) {
     if (kDebugMode) {
-      print('✅ Rider entered campaign geofence');
+      print('✅ Rider entered geofence: ${geofence.name} (ID: $geofenceId)');
+      print('✅ Geofence rate type: ${geofence.rateType}');
+      print('✅ Rate per km: ${geofence.ratePerKm}, Rate per hour: ${geofence.ratePerHour}');
     }
 
+    // Record entry time for this geofence
+    _geofenceEntryTimes[geofenceId] = DateTime.now();
+    
+    // Initialize tracking data for this geofence if not exists
+    _geofenceDistances[geofenceId] ??= 0.0;
+    _geofenceEarnings[geofenceId] ??= 0.0;
+    _geofenceDurations[geofenceId] ??= Duration.zero;
+
     // Store geofence event
-    _recordGeofenceEvent('enter');
+    _recordGeofenceEvent('enter', geofenceId: geofenceId, geofenceName: geofence.name);
   }
 
-  // Handle rider leaving geofence
-  void _onGeofenceExit() {
+  // Handle rider leaving geofence - enhanced for specific geofence tracking
+  void _onGeofenceExit(String geofenceId, Geofence? geofence) {
     if (kDebugMode) {
-      print('⚠️ Rider left campaign geofence');
+      print('⚠️ Rider left geofence: ${geofence?.name ?? 'Unknown'} (ID: $geofenceId)');
+    }
+
+    // Calculate time spent in this geofence
+    if (_geofenceEntryTimes.containsKey(geofenceId)) {
+      final entryTime = _geofenceEntryTimes[geofenceId]!;
+      final exitTime = DateTime.now();
+      final timeSpent = exitTime.difference(entryTime);
+      
+      // Add to total duration for this geofence
+      _geofenceDurations[geofenceId] = 
+          (_geofenceDurations[geofenceId] ?? Duration.zero) + timeSpent;
+      
+      if (kDebugMode) {
+        print('⏱️ Time spent in geofence: ${timeSpent.inMinutes} minutes');
+        print('⏱️ Total time in this geofence: ${_geofenceDurations[geofenceId]!.inMinutes} minutes');
+      }
+      
+      // Update earnings based on time if geofence uses hourly or hybrid rates
+      if (geofence != null) {
+        _updateGeofenceEarningsForTime(geofenceId, geofence, timeSpent);
+      }
+      
+      // Remove entry time
+      _geofenceEntryTimes.remove(geofenceId);
     }
 
     // Show notification about leaving geofence
-    if (_activeCampaign != null) {
+    if (geofence != null) {
       NotificationService.showCampaignUpdate(
-        title: 'Campaign Area Warning',
-        message: 'You have left the ${_activeCampaign!.name} campaign area. Return to continue earning.',
+        title: 'Geofence Area Warning',
+        message: 'You have left the ${geofence.name} area. Move to another campaign area to continue earning.',
       );
     }
 
     // Store geofence event
-    _recordGeofenceEvent('exit');
+    _recordGeofenceEvent('exit', geofenceId: geofenceId, geofenceName: geofence?.name);
   }
 
-  // Record geofence events for tracking compliance
-  void _recordGeofenceEvent(String eventType) {
+  // Record geofence events for tracking compliance - enhanced for specific geofences
+  void _recordGeofenceEvent(String eventType, {String? geofenceId, String? geofenceName}) {
     if (_lastPosition == null || _activeCampaign == null) return;
 
     try {
       final geofenceEvent = {
         'type': eventType,
         'campaign_id': _activeCampaign!.id,
+        'geofence_id': geofenceId,
+        'geofence_name': geofenceName,
         'latitude': _lastPosition!.latitude,
         'longitude': _lastPosition!.longitude,
         'timestamp': DateTime.now().toIso8601String(),
         'accuracy': _lastPosition!.accuracy,
+        'distance_in_geofence': geofenceId != null ? _geofenceDistances[geofenceId] : null,
+        'earnings_from_geofence': geofenceId != null ? _geofenceEarnings[geofenceId] : null,
       };
 
       // Store in local storage for sync
@@ -774,7 +865,7 @@ class LocationService {
       HiveService.saveSetting('geofence_events', events);
 
       if (kDebugMode) {
-        print('📍 Geofence event recorded: $eventType');
+        print('📍 Geofence event recorded: $eventType for ${geofenceName ?? "unknown geofence"}');
       }
     } catch (e) {
       if (kDebugMode) {
@@ -792,6 +883,20 @@ class LocationService {
     if (_lastPosition == null || _activeCampaign == null) return false;
     return _wasInsideGeofence;
   }
+  
+  // Get current geofence information
+  Geofence? get currentGeofence => _currentGeofence;
+  String? get currentGeofenceId => _currentGeofenceId;
+  
+  // Get geofence-specific tracking data
+  Map<String, double> get geofenceDistances => Map.unmodifiable(_geofenceDistances);
+  Map<String, double> get geofenceEarnings => Map.unmodifiable(_geofenceEarnings);
+  Map<String, Duration> get geofenceDurations => Map.unmodifiable(_geofenceDurations);
+  
+  // Get total earnings across all geofences
+  double get totalGeofenceEarnings {
+    return _geofenceEarnings.values.fold(0.0, (sum, earnings) => sum + earnings);
+  }
 
   // Calculate earnings eligibility based on location
   bool isEligibleForEarnings() {
@@ -800,18 +905,137 @@ class LocationService {
            _wasInsideGeofence;
   }
 
-  // Get distance to active campaign center
+  // Get distance to active campaign center - enhanced for multiple geofences
   double? getDistanceToActiveCampaign() {
     if (_lastPosition == null || _activeCampaign == null || _activeCampaign!.geofences.isEmpty) return null;
     
-    // Get distance to the first geofence center
-    final firstGeofence = _activeCampaign!.geofences.first;
-    return calculateDistance(
-      _lastPosition!.latitude,
-      _lastPosition!.longitude,
-      firstGeofence.centerLatitude,
-      firstGeofence.centerLongitude,
-    );
+    // If currently in a geofence, return 0
+    if (_currentGeofence != null) return 0.0;
+    
+    // Find closest geofence
+    double? minDistance;
+    for (final geofence in _activeCampaign!.geofences) {
+      final distance = calculateDistance(
+        _lastPosition!.latitude,
+        _lastPosition!.longitude,
+        geofence.centerLatitude,
+        geofence.centerLongitude,
+      );
+      
+      if (minDistance == null || distance < minDistance) {
+        minDistance = distance;
+      }
+    }
+    
+    return minDistance;
+  }
+  
+  // Get distance to nearest available geofence
+  Map<String, double> getDistancesToAllGeofences() {
+    if (_lastPosition == null || _activeCampaign == null) return {};
+    
+    final distances = <String, double>{};
+    for (final geofence in _activeCampaign!.geofences) {
+      distances[geofence.id ?? 'unknown_${distances.length}'] = calculateDistance(
+        _lastPosition!.latitude,
+        _lastPosition!.longitude,
+        geofence.centerLatitude,
+        geofence.centerLongitude,
+      );
+    }
+    
+    return distances;
+  }
+  
+  // Update earnings for a specific geofence based on distance
+  void _updateGeofenceEarnings(String geofenceId, double distanceMeters) {
+    if (_currentGeofence == null) return;
+    
+    final distanceKm = distanceMeters / 1000.0;
+    double additionalEarnings = 0.0;
+    
+    switch (_currentGeofence!.rateType) {
+      case 'per_km':
+        additionalEarnings = (_currentGeofence!.ratePerKm ?? 0.0) * distanceKm;
+        break;
+      case 'hybrid':
+        // For hybrid, we add distance-based earnings here, time-based on exit
+        additionalEarnings = (_currentGeofence!.ratePerKm ?? 0.0) * distanceKm;
+        break;
+      case 'per_hour':
+      case 'fixed_daily':
+        // These are calculated on geofence exit based on time
+        additionalEarnings = 0.0;
+        break;
+    }
+    
+    _geofenceEarnings[geofenceId] = 
+        (_geofenceEarnings[geofenceId] ?? 0.0) + additionalEarnings;
+    
+    if (kDebugMode && additionalEarnings > 0) {
+      print('💰 Added ₦${additionalEarnings.toStringAsFixed(2)} to geofence ${_currentGeofence!.name}');
+      print('💰 Total earnings from this geofence: ₦${_geofenceEarnings[geofenceId]!.toStringAsFixed(2)}');
+    }
+  }
+  
+  // Update earnings for time-based rates when exiting geofence
+  void _updateGeofenceEarningsForTime(String geofenceId, Geofence geofence, Duration timeSpent) {
+    double additionalEarnings = 0.0;
+    final hoursSpent = timeSpent.inMilliseconds / (1000 * 60 * 60);
+    
+    switch (geofence.rateType) {
+      case 'per_hour':
+        additionalEarnings = (geofence.ratePerHour ?? 0.0) * hoursSpent;
+        break;
+      case 'fixed_daily':
+        // For fixed daily, award proportional amount based on time spent
+        final dailyHours = (geofence.targetCoverageHours ?? 8).toDouble();
+        if (dailyHours > 0) {
+          additionalEarnings = (geofence.fixedDailyRate ?? 0.0) * (hoursSpent / dailyHours);
+        }
+        break;
+      case 'hybrid':
+        // For hybrid, add time-based component (distance was added during movement)
+        additionalEarnings = (geofence.ratePerHour ?? 0.0) * hoursSpent;
+        break;
+      case 'per_km':
+        // No additional earnings for pure distance-based rates
+        additionalEarnings = 0.0;
+        break;
+    }
+    
+    if (additionalEarnings > 0) {
+      _geofenceEarnings[geofenceId] = 
+          (_geofenceEarnings[geofenceId] ?? 0.0) + additionalEarnings;
+      
+      if (kDebugMode) {
+        print('💰 Added ₦${additionalEarnings.toStringAsFixed(2)} for ${timeSpent.inMinutes} minutes in ${geofence.name}');
+        print('💰 Total earnings from this geofence: ₦${_geofenceEarnings[geofenceId]!.toStringAsFixed(2)}');
+      }
+    }
+  }
+  
+  // Get earnings breakdown per geofence
+  Map<String, Map<String, dynamic>> getEarningsBreakdown() {
+    if (_activeCampaign == null) return {};
+    
+    final breakdown = <String, Map<String, dynamic>>{};
+    
+    for (final geofence in _activeCampaign!.geofences) {
+      final geofenceId = geofence.id ?? 'unknown_geofence';
+      breakdown[geofenceId] = {
+        'geofence_name': geofence.name,
+        'rate_type': geofence.rateType,
+        'distance_km': (_geofenceDistances[geofenceId] ?? 0.0) / 1000.0,
+        'duration_minutes': (_geofenceDurations[geofenceId] ?? Duration.zero).inMinutes,
+        'earnings': _geofenceEarnings[geofenceId] ?? 0.0,
+        'rate_per_km': geofence.ratePerKm,
+        'rate_per_hour': geofence.ratePerHour,
+        'fixed_daily_rate': geofence.fixedDailyRate,
+      };
+    }
+    
+    return breakdown;
   }
 
   // Get geofence events for sync

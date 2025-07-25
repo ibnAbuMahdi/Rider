@@ -497,7 +497,7 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen>
     }
 
     final success = await ref.read(verificationProvider.notifier).submitVerification(
-      campaignId: currentCampaign.id,
+      campaignId: currentCampaign.id ?? '',
       imagePath: _capturedImagePath!,
       latitude: _currentLocation!.latitude,
       longitude: _currentLocation!.longitude,

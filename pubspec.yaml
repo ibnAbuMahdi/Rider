@@ -85,7 +85,7 @@ dependencies:
   audioplayers: ^5.2.1
   
   # JSON annotation (needed for runtime)
-  json_annotation: ^4.8.1
+  json_annotation: ^4.9.0
 
 # Dependency overrides for stability
 dependency_overrides:
@@ -102,7 +102,6 @@ dev_dependencies:
   riverpod_generator: ^2.3.9
   hive_generator: ^2.0.1
   build_runner: ^2.4.7
-  json_annotation: ^4.8.1
   json_serializable: ^6.7.1
   
   # Linting

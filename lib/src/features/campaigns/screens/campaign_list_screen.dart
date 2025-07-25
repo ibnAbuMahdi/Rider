@@ -56,7 +56,6 @@ class _CampaignListScreenState extends ConsumerState<CampaignListScreen>
             },
           ),
         ],
-        bottom: currentCampaign != null ? null : _buildSearchAndTabs(),
       ),
       body: RefreshIndicator(
         onRefresh: () async {
@@ -91,11 +90,6 @@ class _CampaignListScreenState extends ConsumerState<CampaignListScreen>
                   ],
                 ),
               ),
-            ] else ...[
-              // Search bar
-              _buildSearchBar(),
-              // Tabs
-              _buildTabBar(),
             ],
             
             // Campaign list
@@ -108,17 +102,6 @@ class _CampaignListScreenState extends ConsumerState<CampaignListScreen>
     );
   }
 
-  PreferredSizeWidget _buildSearchAndTabs() {
-    return PreferredSize(
-      preferredSize: const Size.fromHeight(100),
-      child: Column(
-        children: [
-          _buildSearchBar(),
-          _buildTabBar(),
-        ],
-      ),
-    );
-  }
 
   Widget _buildSearchBar() {
     return Container(
@@ -167,6 +150,7 @@ class _CampaignListScreenState extends ConsumerState<CampaignListScreen>
 
   Widget _buildCampaignList() {
     final campaignState = ref.watch(campaignProvider);
+    final currentCampaign = campaignState.currentCampaign;
     
     if (campaignState.isLoading && campaignState.campaigns.isEmpty) {
       return const Center(
@@ -178,12 +162,30 @@ class _CampaignListScreenState extends ConsumerState<CampaignListScreen>
       return _buildErrorState(campaignState.error!);
     }
     
-    return TabBarView(
-      controller: _tabController,
+    // If user has current campaign, show simple list
+    if (currentCampaign != null) {
+      final availableCampaigns = ref.read(campaignProvider.notifier).availableCampaigns;
+      return _buildCampaignTab(availableCampaigns);
+    }
+    
+    // If no current campaign, show tabs with search
+    return Column(
       children: [
-        _buildCampaignTab(ref.read(campaignProvider.notifier).availableCampaigns),
-        _buildCampaignTab(ref.read(campaignProvider.notifier).runningCampaigns),
-        _buildCampaignTab(ref.read(campaignProvider.notifier).upcomingCampaigns),
+        // Search bar
+        _buildSearchBar(),
+        // Tabs
+        _buildTabBar(),
+        // Tab content
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            children: [
+              _buildCampaignTab(ref.read(campaignProvider.notifier).availableCampaigns),
+              _buildCampaignTab(ref.read(campaignProvider.notifier).runningCampaigns),
+              _buildCampaignTab(ref.read(campaignProvider.notifier).upcomingCampaigns),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -279,7 +281,7 @@ class _CampaignListScreenState extends ConsumerState<CampaignListScreen>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Do you want to join "${campaign.name}"?'),
+            Text('Do you want to join "${campaign.name ?? 'this campaign'}"?'),
             const SizedBox(height: 16),
             _buildCampaignInfo(campaign),
           ],
@@ -296,13 +298,13 @@ class _CampaignListScreenState extends ConsumerState<CampaignListScreen>
                 onPressed: () async {
                   final success = await ref
                       .read(campaignProvider.notifier)
-                      .joinCampaign(campaign.id);
+                      .joinCampaign(campaign.id ?? '');
                   
                   if (success && mounted) {
                     Navigator.of(context).pop();
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Successfully joined ${campaign.name}!'),
+                        content: Text('Successfully joined ${campaign.name ?? 'the campaign'}!'),
                         backgroundColor: AppColors.success,
                       ),
                     );
@@ -328,7 +330,7 @@ class _CampaignListScreenState extends ConsumerState<CampaignListScreen>
       builder: (context) => AlertDialog(
         title: const Text('Leave Campaign'),
         content: Text(
-          'Are you sure you want to leave "${currentCampaign.name}"?\n\n'
+          'Are you sure you want to leave "${currentCampaign.name ?? 'this campaign'}"?\n\n'
           'You will stop earning from this campaign and may need to reapply to join again.',
         ),
         actions: [
@@ -420,7 +422,7 @@ class _CampaignListScreenState extends ConsumerState<CampaignListScreen>
             const Icon(Icons.attach_money, size: 16, color: AppColors.success),
             const SizedBox(width: 4),
             Text(
-              '${AppConstants.currencySymbol}${campaign.ratePerKm.toStringAsFixed(0)}/km',
+              '${AppConstants.currencySymbol}${(campaign.ratePerKm ?? 0.0).toStringAsFixed(0)}/km',
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 color: AppColors.success,
@@ -433,7 +435,7 @@ class _CampaignListScreenState extends ConsumerState<CampaignListScreen>
           children: [
             const Icon(Icons.location_on, size: 16, color: AppColors.textSecondary),
             const SizedBox(width: 4),
-            Text(campaign.area),
+            Text(campaign.area??''),
           ],
         ),
         const SizedBox(height: 4),
@@ -441,7 +443,7 @@ class _CampaignListScreenState extends ConsumerState<CampaignListScreen>
           children: [
             const Icon(Icons.people, size: 16, color: AppColors.textSecondary),
             const SizedBox(width: 4),
-            Text('${campaign.currentRiders}/${campaign.maxRiders} riders'),
+            Text('${campaign.currentRiders ?? 0}/${campaign.maxRiders ?? 0} riders'),
           ],
         ),
       ],
@@ -453,14 +455,14 @@ class _CampaignListScreenState extends ConsumerState<CampaignListScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Campaign image/sticker preview
-        if (campaign.stickerImageUrl.isNotEmpty)
+        if (campaign.stickerImageUrl?.isNotEmpty ?? false)
           Container(
             height: 150,
             width: double.infinity,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               image: DecorationImage(
-                image: NetworkImage(campaign.stickerImageUrl),
+                image: NetworkImage(campaign.stickerImageUrl ?? ''),
                 fit: BoxFit.cover,
               ),
             ),
@@ -470,25 +472,25 @@ class _CampaignListScreenState extends ConsumerState<CampaignListScreen>
         
         // Campaign name and description
         Text(
-          campaign.name,
+          campaign.name ?? 'Unnamed Campaign',
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
             fontWeight: FontWeight.bold,
           ),
         ),
         const SizedBox(height: 8),
         Text(
-          campaign.description,
+          campaign.description??'',
           style: Theme.of(context).textTheme.bodyMedium,
         ),
         
         const SizedBox(height: 24),
         
         // Key details
-        _buildDetailRow('Rate per KM', '${AppConstants.currencySymbol}${campaign.ratePerKm.toStringAsFixed(0)}'),
-        _buildDetailRow('Area', campaign.area),
-        _buildDetailRow('Duration', '${campaign.startDate.day}/${campaign.startDate.month} - ${campaign.endDate.day}/${campaign.endDate.month}'),
-        _buildDetailRow('Available Slots', '${campaign.availableSlots} of ${campaign.maxRiders}'),
-        _buildDetailRow('Estimated Weekly Earnings', '${AppConstants.currencySymbol}${campaign.estimatedWeeklyEarnings.toStringAsFixed(0)}'),
+        _buildDetailRow('Rate per KM', '${AppConstants.currencySymbol}${(campaign.ratePerKm ?? 0.0).toStringAsFixed(0)}'),
+        _buildDetailRow('Area', campaign.area??''),
+        _buildDetailRow('Duration', '${campaign.startDate?.day ?? 'TBD'}/${campaign.startDate?.month ?? 'TBD'} - ${campaign.endDate?.day ?? 'TBD'}/${campaign.endDate?.month ?? 'TBD'}'),
+        _buildDetailRow('Available Slots', '${campaign.availableSlots ?? 0} of ${campaign.maxRiders ?? 0}'),
+        _buildDetailRow('Estimated Weekly Earnings', '${AppConstants.currencySymbol}${(campaign.estimatedWeeklyEarnings ?? 0.0).toStringAsFixed(0)}'),
         
         const SizedBox(height: 24),
         

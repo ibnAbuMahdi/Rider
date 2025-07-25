@@ -53,7 +53,7 @@ class CampaignNotifier extends StateNotifier<CampaignState> {
     Campaign? currentCampaign;
     if (rider?.currentCampaignId != null) {
       currentCampaign = campaigns
-          .where((c) => c.id == rider!.currentCampaignId)
+          .where((c) => c.id != null && c.id == rider!.currentCampaignId)
           .firstOrNull;
     }
 
@@ -136,7 +136,7 @@ class CampaignNotifier extends StateNotifier<CampaignState> {
       if (result.success) {
         // Update current campaign
         final campaign = state.campaigns
-            .where((c) => c.id == campaignId)
+            .where((c) => c.id != null && c.id == campaignId)
             .firstOrNull;
         
         if (campaign != null) {
@@ -149,13 +149,13 @@ class CampaignNotifier extends StateNotifier<CampaignState> {
           
           // Update local campaign data
           final updatedCampaign = campaign.copyWith(
-            currentRiders: campaign.currentRiders + 1,
+            currentRiders: (campaign.currentRiders ?? 0) + 1,
           );
           await HiveService.saveCampaign(updatedCampaign);
           
           // Update state
           final updatedCampaigns = state.campaigns.map((c) {
-            return c.id == campaignId ? updatedCampaign : c;
+            return (c.id != null && c.id == campaignId) ? updatedCampaign : c;
           }).toList();
           
           state = state.copyWith(
@@ -188,7 +188,11 @@ class CampaignNotifier extends StateNotifier<CampaignState> {
     state = state.copyWith(isJoining: true, error: null);
     
     try {
-      final result = await _campaignService.leaveCampaign(state.currentCampaign!.id);
+      final campaignId = state.currentCampaign!.id;
+      if (campaignId == null) {
+        throw Exception('Campaign ID is null, cannot leave campaign');
+      }
+      final result = await _campaignService.leaveCampaign(campaignId);
       
       if (result.success) {
         // Update rider's current campaign
@@ -201,13 +205,13 @@ class CampaignNotifier extends StateNotifier<CampaignState> {
         // Update local campaign data
         final campaign = state.currentCampaign!;
         final updatedCampaign = campaign.copyWith(
-          currentRiders: (campaign.currentRiders - 1).clamp(0, campaign.maxRiders),
+          currentRiders: ((campaign.currentRiders ?? 0) - 1).clamp(0, campaign.maxRiders ?? 0),
         );
         await HiveService.saveCampaign(updatedCampaign);
         
         // Update state
         final updatedCampaigns = state.campaigns.map((c) {
-          return c.id == campaign.id ? updatedCampaign : c;
+          return (c.id != null && c.id == campaign.id) ? updatedCampaign : c;
         }).toList();
         
         state = state.copyWith(

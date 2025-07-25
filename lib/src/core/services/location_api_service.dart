@@ -211,6 +211,9 @@ class LocationApiService {
       });
 
       if (response.statusCode == 200) {
+	 if (kDebugMode) {
+        print('📢 RAW CAMPAIGNS API RESPONSE: ${response.data}'); 
+      }
         return List<Map<String, dynamic>>.from(response.data['results'] ?? response.data);
       }
 

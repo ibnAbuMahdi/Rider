@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:stika_rider/src/core/models/payment_summary.dart';
+import '../../../core/models/campaign.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/campaign_provider.dart';
 import '../../../core/providers/location_provider.dart';
@@ -18,6 +21,9 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _isInitialLoading = true;
+  GoogleMapController? _mapController;
+  Set<Circle> _geofenceCircles = {};
+  Set<Marker> _geofenceMarkers = {};
 
   @override
   void initState() {
@@ -226,11 +232,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       rider = authState.rider;
       activeCampaign = campaignState.currentCampaign;
       
+      // Update geofence overlays when campaign changes
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _updateGeofenceOverlays();
+      });
+      
       if (kDebugMode) {
         print('🏠 HOME BUILD: All providers loaded successfully');
         print('🏠 Rider: ${rider?.firstName ?? 'null'}');
         print('🏠 Campaigns: ${campaignState.campaigns.length}');
         print('🏠 Payment Summary: ${paymentSummary != null ? 'loaded' : 'null'}');
+        print('🏠 Active Campaign Geofences: ${activeCampaign?.geofences.length ?? 0}');
       }
     } catch (e, stack) {
       if (kDebugMode) {
@@ -291,101 +303,195 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       body: RefreshIndicator(
         onRefresh: _loadInitialData,
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Debug info
-                if (kDebugMode)
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Debug Info:', style: Theme.of(context).textTheme.titleMedium),
-                          Text('Rider: ${rider?.firstName ?? 'null'}'),
-                          Text('Campaigns: ${campaignState.campaigns.length}'),
-                          Text('Payment Summary: ${paymentSummary != null ? 'loaded' : 'null'}'),
-                          Text('Location: ${locationState.currentPosition != null ? 'available' : 'unavailable'}'),
-                          if (locationState.currentPosition != null) ...[
-                            Text('  Coordinates: ${locationState.currentPosition!.latitude.toStringAsFixed(4)}, ${locationState.currentPosition!.longitude.toStringAsFixed(4)}'),
-                            Text('  Accuracy: ${locationState.currentPosition!.accuracy.toStringAsFixed(1)}m'),
-                          ],
-                          Text('Permission: ${locationState.hasPermission ? 'granted' : 'denied'}'),
-                          Text('Tracking: ${locationState.isTracking ? 'active' : 'inactive'}'),
-                          if (locationState.error != null)
-                            Text('Error: ${locationState.error}', style: const TextStyle(color: Colors.red, fontSize: 12)),
-                        ],
-                      ),
-                    ),
-                  ),
-                
-                // Quick Stats (simplified)
-                if (paymentSummary != null)
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Earnings Summary', style: Theme.of(context).textTheme.titleMedium),
-                          const SizedBox(height: 8),
-                          Text('This Week: ${paymentSummary.formattedThisWeekEarnings}'),
-                          Text('Pending: ${paymentSummary.formattedPendingEarnings}'),
-                          Text('Total Paid: ${paymentSummary.formattedPaidEarnings}'),
-                        ],
-                      ),
-                    ),
-                  ),
-                
-                // Campaigns info
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Campaigns', style: Theme.of(context).textTheme.titleMedium),
-                        const SizedBox(height: 8),
-                        if (campaignState.isLoading)
-                          const Text('Loading campaigns...')
-                        else if (campaignState.campaigns.isEmpty)
-                          const Text('No campaigns available')
-                        else
-                          Text('${campaignState.campaigns.length} campaigns available'),
-                        
-                        if (activeCampaign != null) ...[
-                          const SizedBox(height: 8),
-                          Text('Active: ${activeCampaign.name}'),
-                        ],
-                      ],
-                    ),
-                  ),
+        child: Stack(
+          children: [
+            // Google Maps as background
+            GoogleMap(
+              initialCameraPosition: CameraPosition(
+                target: LatLng(
+                  locationState.currentPosition?.latitude ?? 6.5244, // Lagos default
+                  locationState.currentPosition?.longitude ?? 3.3792,
                 ),
-                
-                // Quick actions
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Quick Actions', style: Theme.of(context).textTheme.titleMedium),
-                        const SizedBox(height: 8),
-                        ElevatedButton(
-                          onPressed: _showProfile,
-                          child: const Text('View Profile'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+                zoom: 14.0,
+              ),
+              myLocationEnabled: true,
+              myLocationButtonEnabled: false,
+              mapType: MapType.normal,
+              zoomControlsEnabled: false,
+              circles: _geofenceCircles,
+              markers: _geofenceMarkers,
+              onMapCreated: (GoogleMapController controller) {
+                _mapController = controller;
+                _updateGeofenceOverlays();
+              },
             ),
-          ),
+            
+            // Overlay cards on top of map
+            SafeArea(
+              child: Column(
+                children: [
+                  // Top cards section
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        // Debug info card (only in debug mode)
+                        if (kDebugMode)
+                          Card(
+                            elevation: 4,
+                            margin: const EdgeInsets.only(bottom: 16),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Debug Info:', style: Theme.of(context).textTheme.titleMedium),
+                                  const SizedBox(height: 8),
+                                  Text('Rider: ${rider?.firstName ?? 'null'}'),
+                                  Text('Campaigns: ${campaignState.campaigns.length}'),
+                                  Text('Payment Summary: ${paymentSummary != null ? 'loaded' : 'null'}'),
+                                  Text('Location: ${locationState.currentPosition != null ? 'available' : 'unavailable'}'),
+                                  if (locationState.currentPosition != null) ...[
+                                    Text('  Coordinates: ${locationState.currentPosition!.latitude.toStringAsFixed(4)}, ${locationState.currentPosition!.longitude.toStringAsFixed(4)}'),
+                                    Text('  Accuracy: ${locationState.currentPosition!.accuracy.toStringAsFixed(1)}m'),
+                                  ],
+                                  Text('Permission: ${locationState.hasPermission ? 'granted' : 'denied'}'),
+                                  Text('Tracking: ${locationState.isTracking ? 'active' : 'inactive'}'),
+                                  if (locationState.error != null)
+                                    Text('Error: ${locationState.error}', style: const TextStyle(color: Colors.red, fontSize: 12)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        
+                        // Active Campaign card with geofence info
+                        if (activeCampaign != null)
+                          Card(
+                            elevation: 4,
+                            margin: const EdgeInsets.only(bottom: 16),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        'Active Campaign',
+                                        style: Theme.of(context).textTheme.titleMedium,
+                                      ),
+                                      Icon(
+                                        Icons.campaign,
+                                        color: AppColors.primary,
+                                        size: 20,
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    activeCampaign.name ?? 'Active Campaign',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${activeCampaign.geofences.length} active areas',
+                                    style: const TextStyle(
+                                      color: AppColors.textSecondary,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  if (activeCampaign.geofences.isNotEmpty) ...[
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Areas:',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    ...activeCampaign.geofences.take(3).map((geofence) => 
+                                      Padding(
+                                        padding: const EdgeInsets.only(left: 8, bottom: 2),
+                                        child: Row(
+                                          children: [
+                                            Container(
+                                              width: 8,
+                                              height: 8,
+                                              decoration: BoxDecoration(
+                                                color: Color(geofence.displayColor),
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                '${geofence.name ?? 'Geofence'} (${geofence.rateType ?? 'unknown'})',
+                                                style: const TextStyle(fontSize: 12),
+                                              ),
+                                            ),
+                                            Text(
+                                              geofence.canAcceptRiders ? 'Available' : 'Full',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: geofence.canAcceptRiders ? Colors.green : Colors.orange,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    if (activeCampaign.geofences.length > 3)
+                                      Padding(
+                                        padding: const EdgeInsets.only(left: 16, top: 2),
+                                        child: Text(
+                                          '+${activeCampaign.geofences.length - 3} more areas',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.textSecondary,
+                                            fontStyle: FontStyle.italic,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                        
+                        // Earnings Summary card (always visible)
+                        if (paymentSummary != null)
+                          Card(
+                            elevation: 4,
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Earnings Summary', style: Theme.of(context).textTheme.titleMedium),
+                                  const SizedBox(height: 8),
+                                  Text('This Week: ${paymentSummary.formattedThisWeekEarnings}'),
+                                  Text('Pending: ${paymentSummary.formattedPendingEarnings}'),
+                                  Text('Total Paid: ${paymentSummary.formattedPaidEarnings}'),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  
+                  // Spacer to push content to top
+                  const Spacer(),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -401,5 +507,269 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // Navigate to profile screen
     if (kDebugMode) print('🏠 HOME: Navigate to profile');
     // Navigator.pushNamed(context, '/profile');
+  }
+  
+  void _updateGeofenceOverlays() {
+    if (_mapController == null) return;
+    
+    final campaignState = ref.read(campaignProvider);
+    final activeCampaign = campaignState.currentCampaign;
+    
+    if (activeCampaign == null || activeCampaign.geofences.isEmpty) {
+      setState(() {
+        _geofenceCircles.clear();
+        _geofenceMarkers.clear();
+      });
+      return;
+    }
+    
+    final circles = <Circle>{};
+    final markers = <Marker>{};
+    
+    for (int i = 0; i < activeCampaign.geofences.length; i++) {
+      final geofence = activeCampaign.geofences[i];
+      final geofenceId = geofence.id ?? 'unknown';
+      
+      // Create circle overlay for geofence boundary
+      final circle = Circle(
+        circleId: CircleId(geofenceId),
+        center: LatLng(
+          geofence.centerLatitude,
+          geofence.centerLongitude,
+        ),
+        radius: geofence.radius ?? 0.0,
+        fillColor: Color(geofence.displayColor).withOpacity(geofence.displayAlpha * 0.2),
+        strokeColor: Color(geofence.displayColor).withOpacity(geofence.displayAlpha),
+        strokeWidth: geofence.isHighPriority ? 3 : 2,
+      );
+      circles.add(circle);
+      
+      // Create marker for geofence center with earnings info
+      final marker = Marker(
+        markerId: MarkerId(geofenceId),
+        position: LatLng(
+          geofence.centerLatitude,
+          geofence.centerLongitude,
+        ),
+        icon: geofence.isHighPriority 
+            ? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange)
+            : BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+        infoWindow: InfoWindow(
+          title: geofence.name ?? 'Geofence',
+          snippet: _getGeofenceInfoSnippet(geofence),
+        ),
+        onTap: () => _showGeofenceDetails(geofence),
+      );
+      markers.add(marker);
+    }
+    
+    setState(() {
+      _geofenceCircles = circles;
+      _geofenceMarkers = markers;
+    });
+    
+    // Adjust camera to show all geofences
+    _fitCameraToGeofences(activeCampaign.geofences);
+  }
+  
+  String _getGeofenceInfoSnippet(Geofence geofence) {
+    final rateInfo = (geofence.rateType ?? 'per_km') == 'per_km' 
+        ? '₦${geofence.ratePerKm ?? 0.0}/km'
+        : (geofence.rateType ?? 'per_km') == 'per_hour'
+            ? '₦${geofence.ratePerHour ?? 0.0}/hr'
+            : (geofence.rateType ?? 'per_km') == 'fixed_daily'
+                ? '₦${geofence.fixedDailyRate ?? 0.0}/day'
+                : 'Hybrid rate';
+    
+    final availability = geofence.canAcceptRiders 
+        ? '${geofence.availableSlots ?? 0} slots available'
+        : 'Full (${geofence.currentRiders ?? 0}/${geofence.maxRiders ?? 0})';
+    
+    return '$rateInfo • $availability';
+  }
+  
+  void _showGeofenceDetails(Geofence geofence) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: Color(geofence.displayColor),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    geofence.name ?? 'Geofence',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                if (geofence.isHighPriority)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.orange,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'HIGH PRIORITY',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            
+            // Rate Information
+            _buildInfoRow('Rate Type', (geofence.rateType ?? 'per_km').toUpperCase()),
+            if ((geofence.rateType ?? 'per_km') == 'per_km' || (geofence.rateType ?? 'per_km') == 'hybrid')
+              _buildInfoRow('Per Kilometer', '₦${geofence.ratePerKm ?? 0.0}'),
+            if ((geofence.rateType ?? 'per_km') == 'per_hour' || (geofence.rateType ?? 'per_km') == 'hybrid')
+              _buildInfoRow('Per Hour', '₦${geofence.ratePerHour ?? 0.0}'),
+            if ((geofence.rateType ?? 'per_km') == 'fixed_daily')
+              _buildInfoRow('Daily Rate', '₦${geofence.fixedDailyRate ?? 0.0}'),
+            
+            const SizedBox(height: 8),
+            
+            // Availability Information
+            _buildInfoRow('Available Slots', '${geofence.availableSlots ?? 0}'),
+            _buildInfoRow('Current Riders', '${geofence.currentRiders ?? 0}/${geofence.maxRiders ?? 0}'),
+            _buildInfoRow('Fill Percentage', '${(geofence.fillPercentage ?? 0.0).toStringAsFixed(1)}%'),
+            
+            const SizedBox(height: 8),
+            
+            // Financial Information
+            _buildInfoRow('Budget', '₦${geofence.budget ?? 0.0}'),
+            _buildInfoRow('Spent', '₦${geofence.spent ?? 0.0}'),
+            _buildInfoRow('Remaining', '₦${geofence.remainingBudget ?? 0.0}'),
+            
+            const SizedBox(height: 16),
+            
+            // Action buttons
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: geofence.canAcceptRiders ? () {
+                      Navigator.pop(context);
+                      _navigateToGeofence(geofence);
+                    } : null,
+                    child: Text(geofence.canAcceptRiders ? 'Navigate Here' : 'Area Full'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Close'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 14,
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              fontWeight: FontWeight.w500,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  void _navigateToGeofence(Geofence geofence) {
+    if (_mapController != null) {
+      _mapController!.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: LatLng(
+              geofence.centerLatitude,
+              geofence.centerLongitude,
+            ),
+            zoom: 16.0,
+          ),
+        ),
+      );
+    }
+  }
+  
+  void _fitCameraToGeofences(List<Geofence> geofences) {
+    if (_mapController == null || geofences.isEmpty) return;
+    
+    if (geofences.length == 1) {
+      // Single geofence - center on it
+      final geofence = geofences.first;
+      _mapController!.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: LatLng(
+              geofence.centerLatitude,
+              geofence.centerLongitude,
+            ),
+            zoom: 14.0,
+          ),
+        ),
+      );
+      return;
+    }
+    
+    // Multiple geofences - fit bounds
+    double minLat = geofences.first.centerLatitude;
+    double maxLat = geofences.first.centerLatitude;
+    double minLng = geofences.first.centerLongitude;
+    double maxLng = geofences.first.centerLongitude;
+    
+    for (final geofence in geofences) {
+      minLat = math.min(minLat, geofence.centerLatitude);
+      maxLat = math.max(maxLat, geofence.centerLatitude);
+      minLng = math.min(minLng, geofence.centerLongitude);
+      maxLng = math.max(maxLng, geofence.centerLongitude);
+    }
+    
+    final bounds = LatLngBounds(
+      southwest: LatLng(minLat, minLng),
+      northeast: LatLng(maxLat, maxLng),
+    );
+    
+    _mapController!.animateCamera(
+      CameraUpdate.newLatLngBounds(bounds, 100.0),
+    );
   }
 }

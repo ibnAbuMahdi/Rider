@@ -47,7 +47,7 @@ class HiveService {
       Hive.registerAdapter(GeofenceShapeAdapter());
     }
     if (!Hive.isAdapterRegistered(5)) {
-      Hive.registerAdapter(LatLngAdapter());
+      Hive.registerAdapter(GeofencePointAdapter());
     }
     if (!Hive.isAdapterRegistered(6)) {
       Hive.registerAdapter(CampaignRequirementsAdapter());
@@ -119,7 +119,7 @@ class HiveService {
 
   static Future<void> saveCampaign(Campaign campaign) async {
     final campaigns = getCampaigns();
-    final index = campaigns.indexWhere((c) => c.id == campaign.id);
+    final index = campaigns.indexWhere((c) => c.id != null && c.id == campaign.id);
     if (index >= 0) {
       await _campaignBox.putAt(index, campaign);
     } else {

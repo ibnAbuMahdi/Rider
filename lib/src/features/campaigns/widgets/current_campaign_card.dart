@@ -102,7 +102,7 @@ class CurrentCampaignCard extends StatelessWidget {
               children: [
                 // Campaign name and client
                 Text(
-                  campaign.name,
+                  campaign.name ?? 'Unnamed Campaign',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -120,7 +120,7 @@ class CurrentCampaignCard extends StatelessWidget {
                 const SizedBox(height: 16),
                 
                 // Sticker preview
-                if (campaign.stickerImageUrl.isNotEmpty)
+                if (campaign.stickerImageUrl?.isNotEmpty ?? false)
                   Container(
                     height: 80,
                     width: double.infinity,
@@ -131,7 +131,7 @@ class CurrentCampaignCard extends StatelessWidget {
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(8),
                       child: CachedNetworkImage(
-                        imageUrl: campaign.stickerImageUrl,
+                        imageUrl: campaign.stickerImageUrl ?? '',
                         fit: BoxFit.cover,
                         placeholder: (context, url) => Container(
                           color: AppColors.surfaceVariant,
@@ -158,7 +158,7 @@ class CurrentCampaignCard extends StatelessWidget {
                       child: _buildMetricCard(
                         icon: Icons.attach_money,
                         label: 'Rate per KM',
-                        value: '${AppConstants.currencySymbol}${campaign.ratePerKm.toStringAsFixed(0)}',
+                        value: '${AppConstants.currencySymbol}${(campaign.ratePerKm ?? 0.0).toStringAsFixed(0)}',
                         color: AppColors.success,
                       ),
                     ),
@@ -167,7 +167,7 @@ class CurrentCampaignCard extends StatelessWidget {
                       child: _buildMetricCard(
                         icon: Icons.location_on,
                         label: 'Area',
-                        value: campaign.area,
+                        value: campaign.area??'',
                         color: AppColors.secondary,
                       ),
                     ),
@@ -291,7 +291,8 @@ class CurrentCampaignCard extends StatelessWidget {
     );
   }
 
-  String _formatDate(DateTime date) {
+  String _formatDate(DateTime? date) {
+    if (date == null) return 'TBD';
     return '${date.day}/${date.month}/${date.year}';
   }
 

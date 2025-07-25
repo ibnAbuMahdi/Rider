@@ -64,9 +64,9 @@ class CampaignCard extends StatelessWidget {
       child: SizedBox(
         height: 120,
         width: double.infinity,
-        child: campaign.stickerImageUrl.isNotEmpty
+        child: (campaign.stickerImageUrl?.isNotEmpty ?? false)
             ? CachedNetworkImage(
-                imageUrl: campaign.stickerImageUrl,
+                imageUrl: campaign.stickerImageUrl ?? '',
                 fit: BoxFit.cover,
                 placeholder: (context, url) => Container(
                   color: AppColors.surfaceVariant,
@@ -110,7 +110,7 @@ class CampaignCard extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          campaign.name,
+          campaign.name ?? 'Unnamed Campaign',
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.bold,
           ),
@@ -138,7 +138,7 @@ class CampaignCard extends StatelessWidget {
           child: _buildMetricItem(
             icon: Icons.attach_money,
             label: 'Rate',
-            value: '${AppConstants.currencySymbol}${campaign.ratePerKm.toStringAsFixed(0)}/km',
+            value: '${AppConstants.currencySymbol}${(campaign.ratePerKm ?? 0.0).toStringAsFixed(0)}/km',
             color: AppColors.success,
           ),
         ),
@@ -154,7 +154,7 @@ class CampaignCard extends StatelessWidget {
           child: _buildMetricItem(
             icon: Icons.location_on,
             label: 'Area',
-            value: campaign.area,
+            value: campaign.area ?? '',
             color: AppColors.secondary,
           ),
         ),
@@ -170,8 +170,8 @@ class CampaignCard extends StatelessWidget {
           child: _buildMetricItem(
             icon: Icons.people,
             label: 'Slots',
-            value: '${campaign.availableSlots}/${campaign.maxRiders}',
-            color: campaign.fillPercentage > 80 ? AppColors.warning : AppColors.primary,
+            value: '${campaign.availableSlots ?? 0}/${campaign.maxRiders ?? 0}',
+            color: (campaign.fillPercentage ?? 0.0) > 80 ? AppColors.warning : AppColors.primary,
           ),
         ),
       ],
@@ -228,7 +228,7 @@ class CampaignCard extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'You fit make like ${AppConstants.currencySymbol}${campaign.estimatedWeeklyEarnings.toStringAsFixed(0)} every week',
+              'You fit make like ${AppConstants.currencySymbol}${(campaign.estimatedWeeklyEarnings ?? 0.0).toStringAsFixed(0)} every week',
               style: const TextStyle(
                 color: AppColors.earnings,
                 fontWeight: FontWeight.w600,

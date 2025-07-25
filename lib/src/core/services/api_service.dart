@@ -627,6 +627,60 @@ class ApiService {
     }
   }
 
+  // Sync methods for offline storage
+  Future<Map<String, dynamic>> submitVerification(verification) async {
+    try {
+      final response = await post('/riders/verifications/', data: verification.toJson());
+      return response.data as Map<String, dynamic>;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Submit verification failed: $e');
+      }
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> syncLocationBatch(List<dynamic> locations) async {
+    try {
+      final data = {
+        'locations': locations.map((loc) => loc.toJson()).toList(),
+        'batch_size': locations.length,
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+      final response = await post('/riders/locations/batch/', data: data);
+      return response.data as Map<String, dynamic>;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Sync location batch failed: $e');
+      }
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> syncEarning(earning) async {
+    try {
+      final response = await post('/riders/earnings/', data: earning.toJson());
+      return response.data as Map<String, dynamic>;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Sync earning failed: $e');
+      }
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> syncSMSLog(smsLog) async {
+    try {
+      final response = await post('/riders/sms-logs/', data: smsLog.toJson());
+      return response.data as Map<String, dynamic>;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Sync SMS log failed: $e');
+      }
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
   // Cleanup method
   void dispose() {
     _dio.close();

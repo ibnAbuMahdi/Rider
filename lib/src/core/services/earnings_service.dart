@@ -1,13 +1,14 @@
 import 'package:flutter/foundation.dart';
 import '../models/earning.dart';
 import '../models/payment_summary.dart';
-import '../models/campaign.dart';
 import 'api_service.dart';
+import 'location_api_service.dart';
 
 class EarningsService {
   final ApiService _apiService;
+  final LocationApiService _locationApiService;
 
-  EarningsService(this._apiService);
+  EarningsService(this._apiService, this._locationApiService);
 
   // Get rider's earnings with pagination
   Future<Map<String, dynamic>?> getEarnings({
@@ -461,6 +462,256 @@ class EarningsService {
         print('❌ Failed to report earning issue: $e');
       }
       return false;
+    }
+  }
+
+  // New methods using backend tracking system
+
+  // Get tracking-based earnings calculations
+  Future<List<Map<String, dynamic>>> getTrackingEarnings({
+    DateTime? startDate,
+    DateTime? endDate,
+    String? earningsType,
+  }) async {
+    try {
+      return await _locationApiService.calculateEarnings(
+        mobileId: '', // Will be populated by the API call
+        geofenceId: 0, // Will be filtered by the API
+        earningsType: earningsType ?? 'all',
+        distanceKm: 0.0,
+        durationHours: 0.0,
+        verificationsCompleted: 0,
+        earnedAt: DateTime.now(),
+      ).then((result) {
+        if (result['success'] == true) {
+          return [result];
+        }
+        return <Map<String, dynamic>>[];
+      });
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to get tracking earnings: $e');
+      }
+      return [];
+    }
+  }
+
+  // Calculate earnings for a completed session
+  Future<Map<String, dynamic>> calculateSessionEarnings({
+    required String mobileId,
+    required int geofenceId,
+    required String earningsType,
+    required double distanceKm,
+    required double durationHours,
+    required int verificationsCompleted,
+    required DateTime earnedAt,
+    Map<String, dynamic>? metadata,
+  }) async {
+    try {
+      return await _locationApiService.calculateEarnings(
+        mobileId: mobileId,
+        geofenceId: geofenceId,
+        earningsType: earningsType,
+        distanceKm: distanceKm,
+        durationHours: durationHours,
+        verificationsCompleted: verificationsCompleted,
+        earnedAt: earnedAt,
+        metadata: metadata,
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to calculate session earnings: $e');
+      }
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  // Get comprehensive tracking statistics
+  Future<Map<String, dynamic>> getTrackingStats() async {
+    try {
+      return await _locationApiService.getTrackingStats();
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to get tracking stats: $e');
+      }
+      return {
+        'today_distance': 0.0,
+        'today_earnings': 0.0,
+        'today_sessions': 0,
+        'week_distance': 0.0,
+        'week_earnings': 0.0,
+        'month_distance': 0.0,
+        'month_earnings': 0.0,
+        'active_geofences': <String>[],
+        'pending_sync_count': 0,
+        'last_sync': null,
+      };
+    }
+  }
+
+  // Get earnings calculations from tracking backend
+  Future<List<Map<String, dynamic>>> getBackendEarningsCalculations({
+    DateTime? startDate,
+    DateTime? endDate,
+    String? earningsType,
+  }) async {
+    try {
+      return await _apiService.getEarningsCalculations(queryParameters: {
+        if (startDate != null) 'start_date': startDate.toIso8601String(),
+        if (endDate != null) 'end_date': endDate.toIso8601String(),
+        if (earningsType != null) 'earnings_type': earningsType,
+      });
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to get backend earnings calculations: $e');
+      }
+      return [];
+    }
+  }
+
+  // Get rider work sessions with earnings data
+  Future<List<Map<String, dynamic>>> getWorkSessions({
+    DateTime? startDate,
+    DateTime? endDate,
+    String? status,
+  }) async {
+    try {
+      return await _apiService.getRiderSessions(queryParameters: {
+        if (startDate != null) 'start_date': startDate.toIso8601String(),
+        if (endDate != null) 'end_date': endDate.toIso8601String(),
+        if (status != null) 'status': status,
+      });
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to get work sessions: $e');
+      }
+      return [];
+    }
+  }
+
+  // Get daily tracking summaries with earnings breakdown
+  Future<List<Map<String, dynamic>>> getDailyEarningsSummaries({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    try {
+      return await _apiService.getDailyTrackingSummaries(queryParameters: {
+        if (startDate != null) 'start_date': startDate.toIso8601String(),
+        if (endDate != null) 'end_date': endDate.toIso8601String(),
+      });
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to get daily earnings summaries: $e');
+      }
+      return [];
+    }
+  }
+
+  // Validate mobile earnings against backend calculations
+  Future<Map<String, dynamic>> validateEarnings({
+    required String mobileEarningId,
+    required double mobileAmount,
+    required String earningsType,
+    required double distanceKm,
+    required double durationHours,
+    required int verificationsCompleted,
+    required DateTime earnedAt,
+  }) async {
+    try {
+      // Get corresponding backend calculation
+      final backendResult = await calculateSessionEarnings(
+        mobileId: mobileEarningId,
+        geofenceId: 0, // Will be determined by backend
+        earningsType: earningsType,
+        distanceKm: distanceKm,
+        durationHours: durationHours,
+        verificationsCompleted: verificationsCompleted,
+        earnedAt: earnedAt,
+      );
+
+      if (backendResult['success'] == true) {
+        final backendAmount = (backendResult['amount'] as num?)?.toDouble() ?? 0.0;
+        final difference = (mobileAmount - backendAmount).abs();
+        final tolerance = mobileAmount * 0.01; // 1% tolerance
+
+        return {
+          'is_valid': difference <= tolerance,
+          'mobile_amount': mobileAmount,
+          'backend_amount': backendAmount,
+          'difference': difference,
+          'tolerance': tolerance,
+          'discrepancy_percentage': mobileAmount > 0 ? (difference / mobileAmount) * 100 : 0.0,
+          'backend_result': backendResult,
+        };
+      }
+
+      return {
+        'is_valid': false,
+        'error': 'Backend validation failed',
+        'backend_result': backendResult,
+      };
+
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to validate earnings: $e');
+      }
+      return {
+        'is_valid': false,
+        'error': e.toString(),
+      };
+    }
+  }
+
+  // Sync mobile earnings with backend tracking system
+  Future<Map<String, dynamic>> syncMobileEarningsWithBackend(List<Map<String, dynamic>> mobileEarnings) async {
+    try {
+      int successCount = 0;
+      int failureCount = 0;
+      final List<String> errors = [];
+
+      for (final earning in mobileEarnings) {
+        try {
+          final result = await calculateSessionEarnings(
+            mobileId: earning['id'] as String,
+            geofenceId: earning['geofence_id'] as int? ?? 0,
+            earningsType: earning['earnings_type'] as String? ?? 'distance',
+            distanceKm: (earning['distance_km'] as num?)?.toDouble() ?? 0.0,
+            durationHours: (earning['duration_hours'] as num?)?.toDouble() ?? 0.0,
+            verificationsCompleted: earning['verifications_completed'] as int? ?? 0,
+            earnedAt: DateTime.parse(earning['earned_at'] as String),
+            metadata: earning['metadata'] as Map<String, dynamic>?,
+          );
+
+          if (result['success'] == true) {
+            successCount++;
+          } else {
+            failureCount++;
+            errors.add('${earning['id']}: ${result['error']}');
+          }
+        } catch (e) {
+          failureCount++;
+          errors.add('${earning['id']}: $e');
+        }
+      }
+
+      return {
+        'success': failureCount == 0,
+        'total_earnings': mobileEarnings.length,
+        'success_count': successCount,
+        'failure_count': failureCount,
+        'errors': errors,
+      };
+
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to sync mobile earnings with backend: $e');
+      }
+      return {
+        'success': false,
+        'error': e.toString(),
+        'success_count': 0,
+        'failure_count': mobileEarnings.length,
+      };
     }
   }
 }

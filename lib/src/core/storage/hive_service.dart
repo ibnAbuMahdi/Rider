@@ -76,6 +76,15 @@ class HiveService {
     if (!Hive.isAdapterRegistered(14)) {
       Hive.registerAdapter(ActionTypeAdapter());
     }
+    if (!Hive.isAdapterRegistered(26)) {
+      Hive.registerAdapter(GeofenceAssignmentStatusAdapter());
+    }
+    if (!Hive.isAdapterRegistered(27)) {
+      Hive.registerAdapter(GeofenceAssignmentAdapter());
+    }
+    if (!Hive.isAdapterRegistered(28)) {
+      Hive.registerAdapter(CampaignAssignmentAdapter());
+    }
   }
 
   static Future<void> _openBoxes() async {
@@ -119,7 +128,7 @@ class HiveService {
 
   static Future<void> saveCampaign(Campaign campaign) async {
     final campaigns = getCampaigns();
-    final index = campaigns.indexWhere((c) => c.id != null && c.id == campaign.id);
+    final index = campaigns.indexWhere((c) => c.id == campaign.id);
     if (index >= 0) {
       await _campaignBox.putAt(index, campaign);
     } else {
@@ -192,6 +201,16 @@ class HiveService {
         await _locationBox.put(id, location.copyWith(isSynced: true));
       }
     }
+  }
+
+  static Future<void> updateLocationRecord(LocationRecord location) async {
+    await _locationBox.put(location.id, location);
+  }
+
+  static List<LocationRecord> getUnsyncedLocationRecords() {
+    return _locationBox.values
+        .where((l) => !l.isSynced)
+        .toList();
   }
 
   static Future<void> _cleanOldLocationRecords() async {
@@ -422,6 +441,34 @@ class HiveService {
 
   static Future<void> clearDeviceId() async {
     await _settingsBox.delete('device_id');
+  }
+
+  // Random verification timing methods
+  static Future<void> saveLastRandomVerificationTime(DateTime time) async {
+    await _settingsBox.put('last_random_verification_time', time.millisecondsSinceEpoch);
+  }
+
+  static DateTime? getLastRandomVerificationTime() {
+    final timestamp = _settingsBox.get('last_random_verification_time') as int?;
+    return timestamp != null ? DateTime.fromMillisecondsSinceEpoch(timestamp) : null;
+  }
+
+  static Future<void> clearLastRandomVerificationTime() async {
+    await _settingsBox.delete('last_random_verification_time');
+  }
+
+  // Stationary time tracking methods for random verification
+  static Future<void> saveLastStationaryTime(DateTime time) async {
+    await _settingsBox.put('last_stationary_time', time.millisecondsSinceEpoch);
+  }
+
+  static DateTime? getLastStationaryTime() {
+    final timestamp = _settingsBox.get('last_stationary_time') as int?;
+    return timestamp != null ? DateTime.fromMillisecondsSinceEpoch(timestamp) : null;
+  }
+
+  static Future<void> clearLastStationaryTime() async {
+    await _settingsBox.delete('last_stationary_time');
   }
 
 }

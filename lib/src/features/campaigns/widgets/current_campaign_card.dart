@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../../core/models/campaign.dart';
@@ -7,242 +8,213 @@ import '../../../core/constants/app_constants.dart';
 
 class CurrentCampaignCard extends StatelessWidget {
   final Campaign campaign;
-  final VoidCallback? onLeaveCampaign;
+  final VoidCallback? onLeaveGeofence;
 
   const CurrentCampaignCard({
     super.key,
     required this.campaign,
-    this.onLeaveCampaign,
+    this.onLeaveGeofence,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Get geofence areas for display
+    final geofenceAreas = campaign.geofences
+        .where((g) => g.name != null && g.name!.isNotEmpty)
+        .map((g) => g.name!)
+        .take(3)
+        .toList();
+    
     return Container(
-      margin: const EdgeInsets.all(16),
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8), // Reduced bottom margin from 16 to 8
+      height: 115, // Reduced after removing Rate section
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
             AppColors.primary.withOpacity(0.1),
-            AppColors.secondary.withOpacity(0.05),
+            Colors.white,
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.primary.withOpacity(0.3)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.1),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-            ),
-            child: Row(
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header row with campaign info and actions
+            Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                   decoration: BoxDecoration(
                     color: AppColors.success,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
+                  child: const Text(
+                    'ACTIVE',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        Icons.check_circle,
-                        color: Colors.white,
-                        size: 16,
-                      ),
-                      SizedBox(width: 4),
                       Text(
-                        'ACTIVE',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
+                        campaign.name ?? 'Unnamed Campaign',
+                        style: const TextStyle(
                           fontWeight: FontWeight.bold,
+                          fontSize: 16,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
+                      if (campaign.clientName != null && campaign.clientName!.isNotEmpty)
+                        Text(
+                          'by ${campaign.clientName}',
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                     ],
                   ),
                 ),
-                const Spacer(),
                 PopupMenuButton(
-                  icon: const Icon(Icons.more_vert),
+                  icon: const Icon(Icons.more_vert, size: 20),
                   itemBuilder: (context) => [
                     const PopupMenuItem(
                       value: 'leave',
                       child: Row(
                         children: [
-                          Icon(Icons.exit_to_app, color: AppColors.error),
-                          SizedBox(width: 8),
-                          Text('Leave Campaign'),
+                          Icon(Icons.exit_to_app, color: AppColors.error, size: 16),
+                          SizedBox(width: 6),
+                          Text('Leave Geofence', style: TextStyle(fontSize: 14)),
                         ],
                       ),
                     ),
                   ],
                   onSelected: (value) {
-                    if (value == 'leave' && onLeaveCampaign != null) {
-                      onLeaveCampaign!();
+                    if (value == 'leave' && onLeaveGeofence != null) {
+                      onLeaveGeofence!();
                     }
                   },
                 ),
               ],
             ),
-          ),
-          
-          // Content
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            
+            const SizedBox(height: 6),
+            
+            // Active areas and duration in horizontal layout
+            Row(
               children: [
-                // Campaign name and client
-                Text(
-                  campaign.name ?? 'Unnamed Campaign',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                if (campaign.clientName != null && campaign.clientName!.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    'by ${campaign.clientName}',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-                
-                const SizedBox(height: 16),
-                
-                // Sticker preview
-                if (campaign.stickerImageUrl?.isNotEmpty ?? false)
-                  Container(
-                    height: 80,
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: CachedNetworkImage(
-                        imageUrl: campaign.stickerImageUrl ?? '',
-                        fit: BoxFit.cover,
-                        placeholder: (context, url) => Container(
-                          color: AppColors.surfaceVariant,
-                          child: const Center(
-                            child: CircularProgressIndicator(),
-                          ),
-                        ),
-                        errorWidget: (context, url, error) => Container(
-                          color: AppColors.surfaceVariant,
-                          child: const Center(
-                            child: Icon(Icons.image, color: AppColors.textSecondary),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                
-                const SizedBox(height: 16),
-                
-                // Key metrics
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildMetricCard(
-                        icon: Icons.attach_money,
-                        label: 'Rate per KM',
-                        value: '${AppConstants.currencySymbol}${(campaign.ratePerKm ?? 0.0).toStringAsFixed(0)}',
-                        color: AppColors.success,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildMetricCard(
-                        icon: Icons.location_on,
-                        label: 'Area',
-                        value: campaign.area??'',
-                        color: AppColors.secondary,
-                      ),
-                    ),
-                  ],
-                ),
-                
-                const SizedBox(height: 12),
-                
-                // Campaign duration
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.infoLight,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
+                // Active areas section
+                Expanded(
+                  flex: 3,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(
-                        Icons.access_time,
-                        color: AppColors.info,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Campaign Duration',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AppColors.info,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            Text(
-                              '${_formatDate(campaign.startDate)} - ${_formatDate(campaign.endDate)}',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: AppColors.info,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
+                      const Text(
+                        'Active Areas',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: AppColors.textSecondary,
                         ),
                       ),
-                      if (!campaign.isExpired) ...[
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            const Text(
-                              'Time left',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AppColors.info,
-                              ),
-                            ),
-                            Text(
-                              _formatDuration(campaign.timeRemaining),
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: AppColors.info,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
+                      const SizedBox(height: 2),
+                      if (geofenceAreas.isNotEmpty) ...[
+                        Text(
+                          geofenceAreas.length == 1 
+                              ? geofenceAreas.first
+                              : '${geofenceAreas.first} +${geofenceAreas.length - 1} more',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ] else ...[
+                        Text(
+                          campaign.area ?? 'General Area',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ],
                   ),
                 ),
+                const SizedBox(width: 8),
+                // Duration section
+                Expanded(
+                  flex: 2,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.infoLight,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.access_time,
+                              color: AppColors.info,
+                              size: 10,
+                            ),
+                            const SizedBox(width: 2),
+                            Flexible(
+                              child: Text(
+                                '${_formatDate(campaign.startDate)} - ${_formatDate(campaign.endDate)}',
+                                style: const TextStyle(
+                                  fontSize: 8,
+                                  color: AppColors.info,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (!campaign.isExpired) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            _formatDuration(campaign.timeRemaining),
+                            style: const TextStyle(
+                              fontSize: 9,
+                              color: AppColors.info,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

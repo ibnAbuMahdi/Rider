@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -57,15 +56,22 @@ class ApiService {
           }
           
           // Get auth token synchronously from HiveService
-          final token = HiveService.getAuthToken();
-          if (token != null && token.isNotEmpty) {
-            options.headers['Authorization'] = 'Bearer $token';
-            if (kDebugMode) {
-              print('🔵 Auth token added (length: ${token.length})');
+          // Skip adding Authorization header for refresh token requests
+          if (options.path != '/auth/refresh/') {
+            final token = HiveService.getAuthToken();
+            if (token != null && token.isNotEmpty) {
+              options.headers['Authorization'] = 'Bearer $token';
+              if (kDebugMode) {
+                print('🔵 Auth token added (length: ${token.length})');
+              }
+            } else {
+              if (kDebugMode) {
+                print('🔵 No auth token available');
+              }
             }
           } else {
             if (kDebugMode) {
-              print('🔵 No auth token available');
+              print('🔵 Skipping auth header for refresh token request');
             }
           }
           
@@ -156,20 +162,16 @@ class ApiService {
   }
 
   bool _shouldRetry(DioException error) {
-    // Don't retry authentication errors or client errors (4xx)
+    // Don't retry once any response has been received (regardless of status code)
     if (error.response?.statusCode != null) {
-      final statusCode = error.response!.statusCode!;
-      if (statusCode >= 400 && statusCode < 500) {
-        return false;
-      }
+      return false;
     }
 
+    // Only retry for network/timeout errors where no response was received
     return error.type == DioExceptionType.connectionTimeout ||
            error.type == DioExceptionType.receiveTimeout ||
            error.type == DioExceptionType.sendTimeout ||
-           error.type == DioExceptionType.connectionError ||
-           (error.response?.statusCode != null && 
-            error.response!.statusCode! >= 500);
+           error.type == DioExceptionType.connectionError;
   }
 
   Future<Response> _retry(RequestOptions requestOptions) async {
@@ -433,6 +435,54 @@ class ApiService {
     }
   }
 
+  /// Extract user-friendly error message from API response
+  /// Prioritizes detailed nested errors over generic messages
+  String? _extractErrorMessage(Map<String, dynamic>? errorData) {
+    if (errorData == null) return null;
+    
+    // First check for nested errors structure (prioritize specific errors)
+    if (errorData['errors'] != null) {
+      final errors = errorData['errors'];
+      
+      // Check for non_field_errors (most common for validation errors)
+      if (errors['non_field_errors'] != null) {
+        final nonFieldErrors = errors['non_field_errors'];
+        if (nonFieldErrors is List && nonFieldErrors.isNotEmpty) {
+          return nonFieldErrors.first.toString();
+        }
+      }
+      
+      // Check for other field-specific errors
+      if (errors is Map<String, dynamic>) {
+        for (final key in errors.keys) {
+          final fieldErrors = errors[key];
+          if (fieldErrors is List && fieldErrors.isNotEmpty) {
+            return fieldErrors.first.toString();
+          } else if (fieldErrors is String) {
+            return fieldErrors;
+          }
+        }
+      }
+    }
+    
+    // Check for detail field (common in DRF)
+    if (errorData['detail'] != null) {
+      return errorData['detail'];
+    }
+    
+    // Check for direct error
+    if (errorData['error'] != null) {
+      return errorData['error'];
+    }
+    
+    // Fallback to generic message
+    if (errorData['message'] != null) {
+      return errorData['message'];
+    }
+    
+    return null;
+  }
+
   // Enhanced error handling with more specific error types
   ApiException _handleDioError(DioException error) {
     switch (error.type) {
@@ -451,10 +501,7 @@ class ApiService {
         String message = 'Server error occurred';
         
         if (responseData is Map<String, dynamic>) {
-          message = responseData['message'] ?? 
-                   responseData['error'] ?? 
-                   responseData['detail'] ?? 
-                   message;
+          message = _extractErrorMessage(responseData) ?? message;
         }
         
         ApiErrorType errorType;
@@ -640,14 +687,14 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> syncLocationBatch(List<dynamic> locations) async {
+  Future<Map<String, dynamic>> syncLocationBatch(List<dynamic> locations, String batchId) async {
     try {
       final data = {
+        'batch_id': batchId,
+        'batch_created_at': DateTime.now().toIso8601String(),
         'locations': locations.map((loc) => loc.toJson()).toList(),
-        'batch_size': locations.length,
-        'timestamp': DateTime.now().toIso8601String(),
       };
-      final response = await post('/riders/locations/batch/', data: data);
+      final response = await post('/tracking/sync/', data: data);
       return response.data as Map<String, dynamic>;
     } catch (e) {
       if (kDebugMode) {
@@ -678,6 +725,169 @@ class ApiService {
         print('Sync SMS log failed: $e');
       }
       return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  // New tracking endpoints
+  Future<Map<String, dynamic>> getTrackingStats() async {
+    try {
+      final response = await get('/tracking/stats/');
+      return response.data as Map<String, dynamic>;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Get tracking stats failed: $e');
+      }
+      return {
+        'today_distance': 0.0,
+        'today_earnings': 0.0,
+        'today_sessions': 0,
+        'week_distance': 0.0,
+        'week_earnings': 0.0,
+        'month_distance': 0.0,
+        'month_earnings': 0.0,
+        'active_geofences': <String>[],
+        'pending_sync_count': 0,
+        'last_sync': null,
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> calculateEarnings({
+    required String mobileId,
+    required int geofenceId,
+    required String earningsType,
+    required double distanceKm,
+    required double durationHours,
+    required int verificationsCompleted,
+    required DateTime earnedAt,
+    Map<String, dynamic>? metadata,
+  }) async {
+    try {
+      final data = {
+        'mobile_id': mobileId,
+        'geofence_id': geofenceId,
+        'earnings_type': earningsType,
+        'distance_km': distanceKm,
+        'duration_hours': durationHours,
+        'verifications_completed': verificationsCompleted,
+        'earned_at': earnedAt.toIso8601String(),
+        'metadata': metadata ?? {},
+      };
+      final response = await post('/tracking/earnings/calculate/', data: data);
+      return response.data as Map<String, dynamic>;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Calculate earnings failed: $e');
+      }
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getLocationRecords({Map<String, dynamic>? queryParameters}) async {
+    try {
+      final response = await get('/tracking/locations/', queryParameters: queryParameters);
+      final data = response.data;
+      if (data is Map<String, dynamic> && data['results'] is List) {
+        return List<Map<String, dynamic>>.from(data['results']);
+      } else if (data is List) {
+        return List<Map<String, dynamic>>.from(data);
+      }
+      return [];
+    } catch (e) {
+      if (kDebugMode) {
+        print('Get location records failed: $e');
+      }
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getGeofenceEvents({Map<String, dynamic>? queryParameters}) async {
+    try {
+      final response = await get('/tracking/geofence-events/', queryParameters: queryParameters);
+      final data = response.data;
+      if (data is Map<String, dynamic> && data['results'] is List) {
+        return List<Map<String, dynamic>>.from(data['results']);
+      } else if (data is List) {
+        return List<Map<String, dynamic>>.from(data);
+      }
+      return [];
+    } catch (e) {
+      if (kDebugMode) {
+        print('Get geofence events failed: $e');
+      }
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getRiderSessions({Map<String, dynamic>? queryParameters}) async {
+    try {
+      final response = await get('/tracking/sessions/', queryParameters: queryParameters);
+      final data = response.data;
+      if (data is Map<String, dynamic> && data['results'] is List) {
+        return List<Map<String, dynamic>>.from(data['results']);
+      } else if (data is List) {
+        return List<Map<String, dynamic>>.from(data);
+      }
+      return [];
+    } catch (e) {
+      if (kDebugMode) {
+        print('Get rider sessions failed: $e');
+      }
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getEarningsCalculations({Map<String, dynamic>? queryParameters}) async {
+    try {
+      final response = await get('/tracking/earnings/', queryParameters: queryParameters);
+      final data = response.data;
+      if (data is Map<String, dynamic> && data['results'] is List) {
+        return List<Map<String, dynamic>>.from(data['results']);
+      } else if (data is List) {
+        return List<Map<String, dynamic>>.from(data);
+      }
+      return [];
+    } catch (e) {
+      if (kDebugMode) {
+        print('Get earnings calculations failed: $e');
+      }
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getDailyTrackingSummaries({Map<String, dynamic>? queryParameters}) async {
+    try {
+      final response = await get('/tracking/summaries/', queryParameters: queryParameters);
+      final data = response.data;
+      if (data is Map<String, dynamic> && data['results'] is List) {
+        return List<Map<String, dynamic>>.from(data['results']);
+      } else if (data is List) {
+        return List<Map<String, dynamic>>.from(data);
+      }
+      return [];
+    } catch (e) {
+      if (kDebugMode) {
+        print('Get daily tracking summaries failed: $e');
+      }
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getSyncBatches({Map<String, dynamic>? queryParameters}) async {
+    try {
+      final response = await get('/tracking/sync-batches/', queryParameters: queryParameters);
+      final data = response.data;
+      if (data is Map<String, dynamic> && data['results'] is List) {
+        return List<Map<String, dynamic>>.from(data['results']);
+      } else if (data is List) {
+        return List<Map<String, dynamic>>.from(data);
+      }
+      return [];
+    } catch (e) {
+      if (kDebugMode) {
+        print('Get sync batches failed: $e');
+      }
+      return [];
     }
   }
 

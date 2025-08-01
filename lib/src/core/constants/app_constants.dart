@@ -43,11 +43,11 @@ class AppConstants {
   static const Duration resendCooldown = Duration(seconds: 60);
   static const int maxOtpAttempts = 2;  // Kudisms allows 2 attempts
   
-  // Location Tracking
-  static const int locationUpdateIntervalSeconds = 30;
-  static const int stationaryIntervalMinutes = 5;
-  static const double movementThresholdMeters = 10.0;
-  static const int movementThresholdMetersInt = 10; // Integer version for distanceFilter
+  // Location Tracking - DEBUG MODE
+  static const int locationUpdateIntervalSeconds = 10; // Faster updates for debugging
+  static const int stationaryIntervalMinutes = 1; // Faster stationary detection for debugging
+  static const double movementThresholdMeters = 0.0; // No movement threshold for debugging
+  static const int movementThresholdMetersInt = 0; // Integer version for distanceFilter
   static const int batteryLowThreshold = 20;
   static const int maxLocationCacheSize = 1000;
   

@@ -175,6 +175,10 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen>
               else
                 _buildCameraLoading(),
               
+              // Captured image preview (must be before other controls)
+              if (_capturedImagePath != null)
+                _buildImagePreview(),
+              
               // Verification guide overlay
               if (_isCameraInitialized && _capturedImagePath == null)
                 const VerificationGuideOverlay(),
@@ -182,12 +186,8 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen>
               // Top header with countdown
               _buildTopHeader(currentCampaign?.name ?? 'Campaign'),
               
-              // Bottom controls
+              // Bottom controls (must be after image preview to stay on top)
               _buildBottomControls(verificationState.isSubmitting),
-              
-              // Captured image preview
-              if (_capturedImagePath != null)
-                _buildImagePreview(),
             ],
           ),
         ),
@@ -490,14 +490,14 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen>
   Future<void> _submitVerification() async {
     if (!_canSubmit()) return;
 
-    final currentCampaign = ref.read(currentCampaignProvider);
-    if (currentCampaign == null) {
-      _showError('No active campaign found');
+    // Check if we have a verification request with ID
+    if (widget.request?.id == null) {
+      _showError('No verification request found');
       return;
     }
 
-    final success = await ref.read(verificationProvider.notifier).submitVerification(
-      campaignId: currentCampaign.id ?? '',
+    final success = await ref.read(verificationProvider.notifier).submitRandomVerification(
+      verificationId: widget.request!.id,
       imagePath: _capturedImagePath!,
       latitude: _currentLocation!.latitude,
       longitude: _currentLocation!.longitude,

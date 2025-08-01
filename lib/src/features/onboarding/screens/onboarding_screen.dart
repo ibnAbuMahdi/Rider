@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/storage/hive_service.dart';
 import '../../shared/widgets/loading_button.dart';
-import '../../shared/widgets/stika_logo.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
@@ -25,7 +25,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       title: 'Welcome to Stika!',
       subtitle: 'Earn money while you ride your keke',
       description: 'Join thousands of riders making extra income by displaying campaign stickers on their tricycles.',
-      icon: Icons.directions_bike,
+      svgPath: 'assets/icons/tricycle.svg',
       color: AppColors.primary,
     ),
     const OnboardingPage(
@@ -127,18 +127,29 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           // Icon
-          Container(
+          SizedBox(
             width: 120,
             height: 120,
-            decoration: BoxDecoration(
-              color: page.color.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              page.icon,
-              size: 60,
-              color: page.color,
-            ),
+            child: page.svgPath != null
+                ? SvgPicture.asset(
+                    page.svgPath!,
+                    width: 120,
+                    height: 120,
+                    fit: BoxFit.contain,
+                  )
+                : Container(
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      color: page.color.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      page.icon!,
+                      size: 60,
+                      color: page.color,
+                    ),
+                  ),
           ),
           
           const SizedBox(height: 48),
@@ -243,14 +254,16 @@ class OnboardingPage {
   final String title;
   final String subtitle;
   final String description;
-  final IconData icon;
+  final IconData? icon;
+  final String? svgPath;
   final Color color;
 
   const OnboardingPage({
     required this.title,
     required this.subtitle,
     required this.description,
-    required this.icon,
+    this.icon,
+    this.svgPath,
     required this.color,
-  });
+  }) : assert(icon != null || svgPath != null, 'Either icon or svgPath must be provided');
 }

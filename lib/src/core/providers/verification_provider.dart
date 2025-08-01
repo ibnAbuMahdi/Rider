@@ -245,6 +245,117 @@ class VerificationNotifier extends StateNotifier<VerificationState> {
   bool get hasActiveRequest {
     return state.currentRequest != null && !state.currentRequest!.isExpired;
   }
+
+  // Random verification methods for geofence-aware implementation
+
+  Future<VerificationRequest?> createRandomVerification({
+    required double latitude,
+    required double longitude,
+    required double accuracy,
+  }) async {
+    state = state.copyWith(isLoading: true, error: null);
+    
+    try {
+      final result = await _verificationService.createRandomVerification(
+        latitude: latitude,
+        longitude: longitude,
+        accuracy: accuracy,
+      );
+      
+      if (result.success && result.request != null) {
+        // Cache the new verification request
+        await HiveService.saveVerificationRequest(result.request!);
+        
+        state = state.copyWith(
+          currentRequest: result.request,
+          isLoading: false,
+        );
+        
+        return result.request;
+      } else {
+        state = state.copyWith(
+          isLoading: false,
+          error: result.error ?? 'Failed to create verification',
+        );
+        return null;
+      }
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: e.toString(),
+      );
+      return null;
+    }
+  }
+
+  Future<VerificationRequest?> checkForPendingVerification() async {
+    try {
+      final pendingRequest = await _verificationService.checkPendingVerifications();
+      
+      if (pendingRequest != null) {
+        // Cache and set as current request
+        await HiveService.saveVerificationRequest(pendingRequest);
+        state = state.copyWith(currentRequest: pendingRequest);
+      }
+      
+      return pendingRequest;
+    } catch (e) {
+      // Don't update state on error - this is a background check
+      return null;
+    }
+  }
+
+  Future<bool> submitRandomVerification({
+    required String verificationId,
+    required String imagePath,
+    required double latitude,
+    required double longitude,
+    required double accuracy,
+  }) async {
+    state = state.copyWith(isSubmitting: true, error: null);
+    
+    try {
+      final result = await _verificationService.submitRandomVerification(
+        verificationId: verificationId,
+        imagePath: imagePath,
+        latitude: latitude,
+        longitude: longitude,
+        accuracy: accuracy,
+      );
+      
+      if (result.success) {
+        // Clear current request and update cache
+        if (state.currentRequest?.id == verificationId) {
+          final updatedRequest = state.currentRequest!.copyWith(
+            status: VerificationStatus.processing,
+            localImagePath: imagePath,
+            isSynced: true,
+          );
+          
+          await HiveService.updateVerificationRequest(updatedRequest);
+          
+          state = state.copyWith(
+            currentRequest: null,
+            isSubmitting: false,
+          );
+        }
+        
+        return true;
+      } else {
+        state = state.copyWith(
+          isSubmitting: false,
+          error: result.error ?? 'Verification submission failed',
+        );
+        return false;
+      }
+    } catch (e) {
+      state = state.copyWith(
+        isSubmitting: false,
+        error: e.toString(),
+      );
+      return false;
+    }
+  }
 }
 
 // Providers

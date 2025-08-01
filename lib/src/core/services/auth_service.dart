@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:math';
-import 'package:dio/dio.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import '../models/rider.dart';
@@ -353,6 +352,74 @@ class AuthService {
     return null;
   }
 
+  /// Activate rider account with plate number
+  Future<AuthResult> activateRider(String plateNumber) async {
+    try {
+      // Validate plate number format (8 characters: ABC123DD)
+      if (!_isValidPlateNumber(plateNumber)) {
+        return const AuthResult(
+          success: false,
+          error: 'Invalid plate number format. Use format ABC123DD',
+          errorCode: 'INVALID_PLATE_FORMAT',
+        );
+      }
+
+      if (kDebugMode) {
+        print('🚗 Activating rider with plate: $plateNumber');
+      }
+
+      // Send activation request to backend
+      final response = await _apiService.patch('/riders/activate/', data: {
+        'plate_number': plateNumber.toUpperCase(),
+        'device_info': await _getDeviceInfo(),
+      });
+
+      if (response.statusCode == 200) {
+        final data = response.data;
+        
+        if (kDebugMode) {
+          print('✅ Rider activated successfully: $data');
+        }
+        
+        // Update stored rider data
+        if (data['rider'] != null) {
+          await HiveService.saveRiderData(jsonEncode(data['rider']));
+        }
+        
+        return AuthResult(
+          success: true,
+          rider: data['rider'] != null ? Rider.fromJson(data['rider']) : null,
+        );
+      } else {
+        return const AuthResult(
+          success: false,
+          error: 'Failed to activate account',
+          errorCode: 'ACTIVATION_FAILED',
+        );
+      }
+    } on ApiException catch (e) {
+      return _handleActivationError(e);
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Rider activation error: $e');
+      }
+      return AuthResult(
+        success: false,
+        error: 'Activation failed: $e',
+        errorCode: 'ACTIVATION_ERROR',
+      );
+    }
+  }
+
+  /// Validate plate number format (Nigerian format: ABC123DD)
+  bool _isValidPlateNumber(String plateNumber) {
+    if (plateNumber.length != 8) return false;
+    
+    // Nigerian plate format: 3 letters + 3 numbers + 2 letters
+    final regex = RegExp(r'^[A-Z]{3}[0-9]{3}[A-Z]{2}$');
+    return regex.hasMatch(plateNumber.toUpperCase());
+  }
+
   /// Format phone number for Nigerian context
   String _formatPhoneNumber(String phoneNumber) {
     // Remove any non-digit characters
@@ -540,6 +607,66 @@ class AuthService {
     return const AuthResult(
       success: false,
       error: 'Network error. Please try again.',
+      errorCode: 'NETWORK_ERROR',
+    );
+  }
+
+  /// Handle activation-related errors
+  AuthResult _handleActivationError(ApiException e) {
+    if (e.statusCode == 400) {
+      final errorData = e.response;
+      final errorCode = errorData is Map ? errorData['code'] : null;
+      
+      switch (errorCode) {
+        case 'INVALID_PLATE':
+          return AuthResult(
+            success: false,
+            error: 'Invalid plate number format. Please use format ABC123DD',
+            errorCode: errorCode,
+          );
+        case 'PLATE_ALREADY_EXISTS':
+          return AuthResult(
+            success: false,
+            error: 'This plate number is already registered by another rider',
+            errorCode: errorCode,
+          );
+        case 'RIDER_ALREADY_ACTIVE':
+          return AuthResult(
+            success: false,
+            error: 'Your account is already activated',
+            errorCode: errorCode,
+          );
+        case 'RIDER_NOT_FOUND':
+          return AuthResult(
+            success: false,
+            error: 'Rider account not found. Please contact support.',
+            errorCode: errorCode,
+          );
+        default:
+          final message = errorData is Map ? errorData['message'] : null;
+          return AuthResult(
+            success: false,
+            error: message ?? 'Activation failed',
+            errorCode: errorCode,
+          );
+      }
+    } else if (e.statusCode == 403) {
+      return const AuthResult(
+        success: false,
+        error: 'You are not authorized to activate this account',
+        errorCode: 'FORBIDDEN',
+      );
+    } else if (e.statusCode == 500) {
+      return const AuthResult(
+        success: false,
+        error: 'Server error. Please try again later.',
+        errorCode: 'SERVER_ERROR',
+      );
+    }
+    
+    return const AuthResult(
+      success: false,
+      error: 'Network error. Please check your connection.',
       errorCode: 'NETWORK_ERROR',
     );
   }

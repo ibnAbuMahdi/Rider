@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/rider.dart';
 import '../services/auth_service.dart';
@@ -77,11 +78,30 @@ class AuthNotifier extends StateNotifier<AuthState> {
         await HiveService.saveUserId(result.rider!.id);
         await HiveService.saveRider(result.rider!);
         
+        if (kDebugMode) {
+          print('🎯 AUTH SUCCESS: Saved rider data');
+          print('🎯 AUTH: Rider ID: ${result.rider!.id}');
+          print('🎯 AUTH: Rider Phone: ${result.rider!.phoneNumber}');
+          print('🎯 AUTH: Current Campaign ID: ${result.rider!.currentCampaignId}');
+          print('🎯 AUTH: Has Completed Onboarding: ${result.rider!.hasCompletedOnboarding}');
+          print('🎯 AUTH: Is Active: ${result.rider!.isActive}');
+          print('🎯 AUTH: Status: ${result.rider!.status}');
+        }
+        
         state = state.copyWith(
           isAuthenticated: true,
           isLoading: false,
           rider: result.rider,
         );
+        
+        // Trigger my-campaigns refresh to get geofence assignments
+        // This is crucial for geofence-aware random verification
+        if (kDebugMode) {
+          print('🎯 AUTH SUCCESS: Triggering my-campaigns refresh to load geofence assignments');
+        }
+        // Note: We'll trigger this through a provider ref in the calling widget
+        // since we can't directly access other providers from here
+        
         return true;
       } else {
         state = state.copyWith(
@@ -108,6 +128,37 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   void clearError() {
     state = state.copyWith(error: null);
+  }
+
+  Future<bool> activateRider(String plateNumber) async {
+    state = state.copyWith(isLoading: true, error: null);
+    
+    try {
+      final result = await _authService.activateRider(plateNumber);
+      
+      if (result.success && result.rider != null) {
+        // Update local storage with new rider data
+        await HiveService.saveRider(result.rider!);
+        
+        state = state.copyWith(
+          isLoading: false,
+          rider: result.rider,
+        );
+        return true;
+      } else {
+        state = state.copyWith(
+          isLoading: false,
+          error: result.error ?? 'Activation failed',
+        );
+        return false;
+      }
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: e.toString(),
+      );
+      return false;
+    }
   }
 }
 

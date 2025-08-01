@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 
 class AppColors {
   // Primary Brand Colors
-  static const Color primary = Color(0xFF22C55E); // Green - main brand color
-  static const Color primaryDark = Color(0xFF16A34A);
-  static const Color primaryLight = Color(0xFF86EFAC);
+  static const Color primary = Color(0xFF6A1B9A); // Purple - main brand color
+  static const Color primaryDark = Color(0xFF4A148C);
+  static const Color primaryLight = Color(0xFF9C47D0);
   
   // Secondary Colors
   static const Color secondary = Color(0xFF3B82F6); // Blue
@@ -78,14 +78,14 @@ class AppColors {
   // Map Colors
   static const Color mapPrimary = primary;
   static const Color mapSecondary = secondary;
-  static const Color geofenceFill = Color(0x1A22C55E);
+  static const Color geofenceFill = Color(0x1A6A1B9A);
   static const Color geofenceBorder = primary;
   static const Color routeColor = secondary;
   
   // Button Gradients
   static const List<Color> primaryGradient = [
-    Color(0xFF22C55E),
-    Color(0xFF16A34A),
+    Color(0xFF6A1B9A),
+    Color(0xFF4A148C),
   ];
   
   static const List<Color> earningsGradient = [

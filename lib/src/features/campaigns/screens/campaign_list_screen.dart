@@ -8,6 +8,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../shared/widgets/loading_button.dart';
 import '../widgets/campaign_card.dart';
 import '../widgets/current_campaign_card.dart';
+import 'campaign_details_screen.dart';
 
 class CampaignListScreen extends ConsumerStatefulWidget {
   const CampaignListScreen({super.key});
@@ -26,9 +27,9 @@ class _CampaignListScreenState extends ConsumerState<CampaignListScreen>
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     
-    // Load campaigns when screen opens
+    // Load campaigns when screen opens - but only if cache is stale
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(campaignProvider.notifier).loadAvailableCampaigns();
+      ref.read(campaignProvider.notifier).loadAvailableCampaigns(); // Will check cache freshness internally
     });
   }
 
@@ -59,7 +60,7 @@ class _CampaignListScreenState extends ConsumerState<CampaignListScreen>
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          await ref.read(campaignProvider.notifier).refreshCampaigns();
+          await ref.read(campaignProvider.notifier).loadAvailableCampaigns(forceRefresh: true);
         },
         child: Column(
           children: [
@@ -67,7 +68,7 @@ class _CampaignListScreenState extends ConsumerState<CampaignListScreen>
             if (currentCampaign != null) ...[
               CurrentCampaignCard(
                 campaign: currentCampaign,
-                onLeaveCampaign: _showLeaveCampaignDialog,
+                onLeaveGeofence: _showLeaveGeofenceDialog,
               ),
               const Divider(height: 32),
               Padding(
@@ -227,7 +228,6 @@ class _CampaignListScreenState extends ConsumerState<CampaignListScreen>
         final campaign = campaigns[index];
         return CampaignCard(
           campaign: campaign,
-          onJoin: () => _showJoinCampaignDialog(campaign),
           onViewDetails: () => _showCampaignDetails(campaign),
         );
       },
@@ -272,66 +272,19 @@ class _CampaignListScreenState extends ConsumerState<CampaignListScreen>
     );
   }
 
-  void _showJoinCampaignDialog(Campaign campaign) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Join Campaign'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Do you want to join "${campaign.name ?? 'this campaign'}"?'),
-            const SizedBox(height: 16),
-            _buildCampaignInfo(campaign),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          Consumer(
-            builder: (context, ref, child) {
-              final isJoining = ref.watch(campaignProvider).isJoining;
-              return LoadingButton(
-                onPressed: () async {
-                  final success = await ref
-                      .read(campaignProvider.notifier)
-                      .joinCampaign(campaign.id ?? '');
-                  
-                  if (success && mounted) {
-                    Navigator.of(context).pop();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Successfully joined ${campaign.name ?? 'the campaign'}!'),
-                        backgroundColor: AppColors.success,
-                      ),
-                    );
-                  }
-                },
-                isLoading: isJoining,
-                minimumSize: const Size(100, 40),
-                child: const Text('Join'),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
 
-  void _showLeaveCampaignDialog() {
+  void _showLeaveGeofenceDialog() {
     final currentCampaign = ref.read(campaignProvider).currentCampaign;
-    if (currentCampaign == null) return;
+    final currentGeofence = ref.read(campaignProvider).currentGeofence;
+    if (currentCampaign == null || currentGeofence == null) return;
     
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Leave Campaign'),
+        title: const Text('Leave Geofence'),
         content: Text(
-          'Are you sure you want to leave "${currentCampaign.name ?? 'this campaign'}"?\n\n'
-          'You will stop earning from this campaign and may need to reapply to join again.',
+          'Are you sure you want to leave "${currentGeofence.name ?? 'this geofence'}" in "${currentCampaign.name ?? 'this campaign'}"?\n\n'
+          'You will stop earning from this geofence area and may need to reapply to join again.',
         ),
         actions: [
           TextButton(
@@ -345,13 +298,13 @@ class _CampaignListScreenState extends ConsumerState<CampaignListScreen>
                 onPressed: () async {
                   final success = await ref
                       .read(campaignProvider.notifier)
-                      .leaveCampaign();
+                      .leaveCurrentGeofence();
                   
                   if (success && mounted) {
                     Navigator.of(context).pop();
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('Successfully left campaign'),
+                        content: Text('Successfully left geofence'),
                         backgroundColor: AppColors.success,
                       ),
                     );
@@ -370,85 +323,13 @@ class _CampaignListScreenState extends ConsumerState<CampaignListScreen>
   }
 
   void _showCampaignDetails(Campaign campaign) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        maxChildSize: 0.9,
-        minChildSize: 0.5,
-        builder: (context, scrollController) {
-          return Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            child: Column(
-              children: [
-                // Handle
-                Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.symmetric(vertical: 12),
-                  decoration: BoxDecoration(
-                    color: AppColors.border,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                
-                // Content
-                Expanded(
-                  child: SingleChildScrollView(
-                    controller: scrollController,
-                    padding: const EdgeInsets.all(16),
-                    child: _buildDetailedCampaignInfo(campaign),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => CampaignDetailsScreen(campaign: campaign),
       ),
     );
   }
 
-  Widget _buildCampaignInfo(Campaign campaign) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            const Icon(Icons.attach_money, size: 16, color: AppColors.success),
-            const SizedBox(width: 4),
-            Text(
-              '${AppConstants.currencySymbol}${(campaign.ratePerKm ?? 0.0).toStringAsFixed(0)}/km',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: AppColors.success,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            const Icon(Icons.location_on, size: 16, color: AppColors.textSecondary),
-            const SizedBox(width: 4),
-            Text(campaign.area??''),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            const Icon(Icons.people, size: 16, color: AppColors.textSecondary),
-            const SizedBox(width: 4),
-            Text('${campaign.currentRiders ?? 0}/${campaign.maxRiders ?? 0} riders'),
-          ],
-        ),
-      ],
-    );
-  }
 
   Widget _buildDetailedCampaignInfo(Campaign campaign) {
     return Column(
@@ -495,14 +376,14 @@ class _CampaignListScreenState extends ConsumerState<CampaignListScreen>
         const SizedBox(height: 24),
         
         // Join button
-        if (campaign.canJoin)
-          LoadingButton(
-            onPressed: () async {
-              Navigator.of(context).pop();
-              _showJoinCampaignDialog(campaign);
-            },
-            child: const Text('JOIN THIS CAMPAIGN'),
-          ),
+        //if (campaign.canJoin)
+          //LoadingButton(
+            //onPressed: () async {
+              //Navigator.of(context).pop();
+              //_showJoinCampaignDialog(campaign);
+            //},
+            //child: const Text('JOIN THIS CAMPAIGN'),
+          //),
       ],
     );
   }

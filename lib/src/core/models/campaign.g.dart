@@ -6,6 +6,167 @@ part of 'campaign.dart';
 // TypeAdapterGenerator
 // **************************************************************************
 
+class GeofenceAssignmentAdapter extends TypeAdapter<GeofenceAssignment> {
+  @override
+  final int typeId = 27;
+
+  @override
+  GeofenceAssignment read(BinaryReader reader) {
+    final numOfFields = reader.readByte();
+    final fields = <int, dynamic>{
+      for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+    };
+    return GeofenceAssignment(
+      geofenceId: fields[0] as String,
+      geofenceName: fields[1] as String,
+      status: fields[2] as GeofenceAssignmentStatus,
+      startedAt: fields[3] as DateTime?,
+      endedAt: fields[4] as DateTime?,
+      centerLatitude: fields[5] as double,
+      centerLongitude: fields[6] as double,
+      radiusMeters: fields[7] as int,
+      ratePerKm: fields[8] as double?,
+      ratePerHour: fields[9] as double?,
+      fixedDailyRate: fields[10] as double?,
+      amountEarned: fields[11] as double?,
+      distanceCovered: fields[12] as double?,
+      hoursActive: fields[13] as double?,
+      centerLatitudeCamelCase: fields[14] as double?,
+      centerLongitudeCamelCase: fields[15] as double?,
+      radius: fields[16] as int?,
+      displayColor: fields[17] as int?,
+      displayAlpha: fields[18] as double?,
+      isHighPriority: fields[19] as bool?,
+      name: fields[20] as String?,
+      budget: fields[21] as double?,
+      spent: fields[22] as double?,
+      remainingBudget: fields[23] as double?,
+      maxRiders: fields[24] as int?,
+      currentRiders: fields[25] as int?,
+      isActiveFromBackend: fields[26] as bool?,
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, GeofenceAssignment obj) {
+    writer
+      ..writeByte(27)
+      ..writeByte(0)
+      ..write(obj.geofenceId)
+      ..writeByte(1)
+      ..write(obj.geofenceName)
+      ..writeByte(2)
+      ..write(obj.status)
+      ..writeByte(3)
+      ..write(obj.startedAt)
+      ..writeByte(4)
+      ..write(obj.endedAt)
+      ..writeByte(5)
+      ..write(obj.centerLatitude)
+      ..writeByte(6)
+      ..write(obj.centerLongitude)
+      ..writeByte(7)
+      ..write(obj.radiusMeters)
+      ..writeByte(8)
+      ..write(obj.ratePerKm)
+      ..writeByte(9)
+      ..write(obj.ratePerHour)
+      ..writeByte(10)
+      ..write(obj.fixedDailyRate)
+      ..writeByte(11)
+      ..write(obj.amountEarned)
+      ..writeByte(12)
+      ..write(obj.distanceCovered)
+      ..writeByte(13)
+      ..write(obj.hoursActive)
+      ..writeByte(14)
+      ..write(obj.centerLatitudeCamelCase)
+      ..writeByte(15)
+      ..write(obj.centerLongitudeCamelCase)
+      ..writeByte(16)
+      ..write(obj.radius)
+      ..writeByte(17)
+      ..write(obj.displayColor)
+      ..writeByte(18)
+      ..write(obj.displayAlpha)
+      ..writeByte(19)
+      ..write(obj.isHighPriority)
+      ..writeByte(20)
+      ..write(obj.name)
+      ..writeByte(21)
+      ..write(obj.budget)
+      ..writeByte(22)
+      ..write(obj.spent)
+      ..writeByte(23)
+      ..write(obj.remainingBudget)
+      ..writeByte(24)
+      ..write(obj.maxRiders)
+      ..writeByte(25)
+      ..write(obj.currentRiders)
+      ..writeByte(26)
+      ..write(obj.isActiveFromBackend);
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is GeofenceAssignmentAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}
+
+class CampaignAssignmentAdapter extends TypeAdapter<CampaignAssignment> {
+  @override
+  final int typeId = 28;
+
+  @override
+  CampaignAssignment read(BinaryReader reader) {
+    final numOfFields = reader.readByte();
+    final fields = <int, dynamic>{
+      for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+    };
+    return CampaignAssignment(
+      status: fields[0] as String,
+      assignedAt: fields[1] as DateTime?,
+      acceptedAt: fields[2] as DateTime?,
+      verificationCount: fields[3] as int,
+      complianceScore: fields[4] as double,
+      amountEarned: fields[5] as double,
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, CampaignAssignment obj) {
+    writer
+      ..writeByte(6)
+      ..writeByte(0)
+      ..write(obj.status)
+      ..writeByte(1)
+      ..write(obj.assignedAt)
+      ..writeByte(2)
+      ..write(obj.acceptedAt)
+      ..writeByte(3)
+      ..write(obj.verificationCount)
+      ..writeByte(4)
+      ..write(obj.complianceScore)
+      ..writeByte(5)
+      ..write(obj.amountEarned);
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CampaignAssignmentAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}
+
 class CampaignAdapter extends TypeAdapter<Campaign> {
   @override
   final int typeId = 1;
@@ -17,11 +178,11 @@ class CampaignAdapter extends TypeAdapter<Campaign> {
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
     return Campaign(
-      id: fields[0] as String?,
+      id: fields[0] as String,
       name: fields[1] as String?,
       description: fields[2] as String?,
       clientName: fields[3] as String?,
-      agencyId: fields[4] as String?,
+      agencyId: fields[4] as String,
       agencyName: fields[5] as String?,
       stickerImageUrl: fields[6] as String?,
       ratePerKm: fields[7] as double?,
@@ -45,13 +206,15 @@ class CampaignAdapter extends TypeAdapter<Campaign> {
       totalDistanceCovered: fields[25] as double?,
       budget: fields[26] as double?,
       spent: fields[27] as double?,
+      assignment: fields[28] as CampaignAssignment?,
+      activeGeofences: (fields[29] as List).cast<GeofenceAssignment>(),
     );
   }
 
   @override
   void write(BinaryWriter writer, Campaign obj) {
     writer
-      ..writeByte(28)
+      ..writeByte(30)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -107,7 +270,11 @@ class CampaignAdapter extends TypeAdapter<Campaign> {
       ..writeByte(26)
       ..write(obj.budget)
       ..writeByte(27)
-      ..write(obj.spent);
+      ..write(obj.spent)
+      ..writeByte(28)
+      ..write(obj.assignment)
+      ..writeByte(29)
+      ..write(obj.activeGeofences);
   }
 
   @override
@@ -132,7 +299,7 @@ class GeofenceAdapter extends TypeAdapter<Geofence> {
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
     return Geofence(
-      id: fields[0] as String?,
+      id: fields[0] as String,
       name: fields[1] as String?,
       centerLatitude: fields[2] as double,
       centerLongitude: fields[3] as double,
@@ -170,13 +337,16 @@ class GeofenceAdapter extends TypeAdapter<Geofence> {
       successfulVerifications: fields[35] as int?,
       totalHoursActive: fields[36] as double?,
       targetDemographics: (fields[37] as Map?)?.cast<String, dynamic>(),
+      pickupLocations: (fields[38] as List?)
+          ?.map((dynamic e) => (e as Map).cast<String, dynamic>())
+          ?.toList(),
     );
   }
 
   @override
   void write(BinaryWriter writer, Geofence obj) {
     writer
-      ..writeByte(38)
+      ..writeByte(39)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -252,7 +422,9 @@ class GeofenceAdapter extends TypeAdapter<Geofence> {
       ..writeByte(36)
       ..write(obj.totalHoursActive)
       ..writeByte(37)
-      ..write(obj.targetDemographics);
+      ..write(obj.targetDemographics)
+      ..writeByte(38)
+      ..write(obj.pickupLocations);
   }
 
   @override
@@ -414,6 +586,61 @@ class CampaignStatusAdapter extends TypeAdapter<CampaignStatus> {
           typeId == other.typeId;
 }
 
+class GeofenceAssignmentStatusAdapter
+    extends TypeAdapter<GeofenceAssignmentStatus> {
+  @override
+  final int typeId = 26;
+
+  @override
+  GeofenceAssignmentStatus read(BinaryReader reader) {
+    switch (reader.readByte()) {
+      case 0:
+        return GeofenceAssignmentStatus.assigned;
+      case 1:
+        return GeofenceAssignmentStatus.active;
+      case 2:
+        return GeofenceAssignmentStatus.paused;
+      case 3:
+        return GeofenceAssignmentStatus.completed;
+      case 4:
+        return GeofenceAssignmentStatus.cancelled;
+      default:
+        return GeofenceAssignmentStatus.assigned;
+    }
+  }
+
+  @override
+  void write(BinaryWriter writer, GeofenceAssignmentStatus obj) {
+    switch (obj) {
+      case GeofenceAssignmentStatus.assigned:
+        writer.writeByte(0);
+        break;
+      case GeofenceAssignmentStatus.active:
+        writer.writeByte(1);
+        break;
+      case GeofenceAssignmentStatus.paused:
+        writer.writeByte(2);
+        break;
+      case GeofenceAssignmentStatus.completed:
+        writer.writeByte(3);
+        break;
+      case GeofenceAssignmentStatus.cancelled:
+        writer.writeByte(4);
+        break;
+    }
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is GeofenceAssignmentStatusAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}
+
 class GeofenceShapeAdapter extends TypeAdapter<GeofenceShape> {
   @override
   final int typeId = 4;
@@ -457,12 +684,110 @@ class GeofenceShapeAdapter extends TypeAdapter<GeofenceShape> {
 // JsonSerializableGenerator
 // **************************************************************************
 
+GeofenceAssignment _$GeofenceAssignmentFromJson(Map<String, dynamic> json) =>
+    GeofenceAssignment(
+      geofenceId: json['geofence_id'] as String,
+      geofenceName: json['geofence_name'] as String,
+      status: $enumDecode(_$GeofenceAssignmentStatusEnumMap, json['status']),
+      startedAt: json['started_at'] == null
+          ? null
+          : DateTime.parse(json['started_at'] as String),
+      endedAt: json['completed_at'] == null
+          ? null
+          : DateTime.parse(json['completed_at'] as String),
+      centerLatitude: (json['center_latitude'] as num).toDouble(),
+      centerLongitude: (json['center_longitude'] as num).toDouble(),
+      radiusMeters: (json['radius_meters'] as num).toInt(),
+      ratePerKm: (json['rate_per_km'] as num?)?.toDouble(),
+      ratePerHour: (json['rate_per_hour'] as num?)?.toDouble(),
+      fixedDailyRate: (json['fixed_daily_rate'] as num?)?.toDouble(),
+      amountEarned: (json['earnings_from_geofence'] as num?)?.toDouble(),
+      distanceCovered: (json['distance_covered'] as num?)?.toDouble(),
+      hoursActive: (json['hours_active'] as num?)?.toDouble(),
+      centerLatitudeCamelCase: (json['centerLatitude'] as num?)?.toDouble(),
+      centerLongitudeCamelCase: (json['centerLongitude'] as num?)?.toDouble(),
+      radius: (json['radius'] as num?)?.toInt(),
+      displayColor: (json['displayColor'] as num?)?.toInt(),
+      displayAlpha: (json['displayAlpha'] as num?)?.toDouble(),
+      isHighPriority: json['isHighPriority'] as bool?,
+      name: json['name'] as String?,
+      budget: (json['budget'] as num?)?.toDouble(),
+      spent: (json['spent'] as num?)?.toDouble(),
+      remainingBudget: (json['remainingBudget'] as num?)?.toDouble(),
+      maxRiders: (json['maxRiders'] as num?)?.toInt(),
+      currentRiders: (json['currentRiders'] as num?)?.toInt(),
+      isActiveFromBackend: json['isActive'] as bool?,
+    );
+
+Map<String, dynamic> _$GeofenceAssignmentToJson(GeofenceAssignment instance) =>
+    <String, dynamic>{
+      'geofence_id': instance.geofenceId,
+      'geofence_name': instance.geofenceName,
+      'status': _$GeofenceAssignmentStatusEnumMap[instance.status]!,
+      'started_at': instance.startedAt?.toIso8601String(),
+      'completed_at': instance.endedAt?.toIso8601String(),
+      'center_latitude': instance.centerLatitude,
+      'center_longitude': instance.centerLongitude,
+      'radius_meters': instance.radiusMeters,
+      'rate_per_km': instance.ratePerKm,
+      'rate_per_hour': instance.ratePerHour,
+      'fixed_daily_rate': instance.fixedDailyRate,
+      'earnings_from_geofence': instance.amountEarned,
+      'distance_covered': instance.distanceCovered,
+      'hours_active': instance.hoursActive,
+      'centerLatitude': instance.centerLatitudeCamelCase,
+      'centerLongitude': instance.centerLongitudeCamelCase,
+      'radius': instance.radius,
+      'displayColor': instance.displayColor,
+      'displayAlpha': instance.displayAlpha,
+      'isHighPriority': instance.isHighPriority,
+      'name': instance.name,
+      'budget': instance.budget,
+      'spent': instance.spent,
+      'remainingBudget': instance.remainingBudget,
+      'maxRiders': instance.maxRiders,
+      'currentRiders': instance.currentRiders,
+      'isActive': instance.isActiveFromBackend,
+    };
+
+const _$GeofenceAssignmentStatusEnumMap = {
+  GeofenceAssignmentStatus.assigned: 'assigned',
+  GeofenceAssignmentStatus.active: 'active',
+  GeofenceAssignmentStatus.paused: 'paused',
+  GeofenceAssignmentStatus.completed: 'completed',
+  GeofenceAssignmentStatus.cancelled: 'cancelled',
+};
+
+CampaignAssignment _$CampaignAssignmentFromJson(Map<String, dynamic> json) =>
+    CampaignAssignment(
+      status: json['status'] as String,
+      assignedAt: json['assigned_at'] == null
+          ? null
+          : DateTime.parse(json['assigned_at'] as String),
+      acceptedAt: json['accepted_at'] == null
+          ? null
+          : DateTime.parse(json['accepted_at'] as String),
+      verificationCount: (json['verification_count'] as num).toInt(),
+      complianceScore: (json['compliance_score'] as num).toDouble(),
+      amountEarned: (json['amount_earned'] as num).toDouble(),
+    );
+
+Map<String, dynamic> _$CampaignAssignmentToJson(CampaignAssignment instance) =>
+    <String, dynamic>{
+      'status': instance.status,
+      'assigned_at': instance.assignedAt?.toIso8601String(),
+      'accepted_at': instance.acceptedAt?.toIso8601String(),
+      'verification_count': instance.verificationCount,
+      'compliance_score': instance.complianceScore,
+      'amount_earned': instance.amountEarned,
+    };
+
 Campaign _$CampaignFromJson(Map<String, dynamic> json) => Campaign(
-      id: json['id'] as String?,
+      id: json['id'] as String,
       name: json['name'] as String?,
       description: json['description'] as String?,
       clientName: json['clientName'] as String?,
-      agencyId: json['agencyId'] as String?,
+      agencyId: json['agencyId'] as String,
       agencyName: json['agencyName'] as String?,
       stickerImageUrl: json['stickerImageUrl'] as String?,
       ratePerKm: (json['ratePerKm'] as num?)?.toDouble(),
@@ -503,6 +828,15 @@ Campaign _$CampaignFromJson(Map<String, dynamic> json) => Campaign(
       totalDistanceCovered: (json['totalDistanceCovered'] as num?)?.toDouble(),
       budget: Campaign._stringToDouble(json['budget']),
       spent: Campaign._stringToDouble(json['spent']),
+      assignment: json['assignment'] == null
+          ? null
+          : CampaignAssignment.fromJson(
+              json['assignment'] as Map<String, dynamic>),
+      activeGeofences: (json['active_geofences'] as List<dynamic>?)
+              ?.map(
+                  (e) => GeofenceAssignment.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
     );
 
 Map<String, dynamic> _$CampaignToJson(Campaign instance) => <String, dynamic>{
@@ -534,6 +868,8 @@ Map<String, dynamic> _$CampaignToJson(Campaign instance) => <String, dynamic>{
       'totalDistanceCovered': instance.totalDistanceCovered,
       'budget': Campaign._doubleToString(instance.budget),
       'spent': Campaign._doubleToString(instance.spent),
+      'assignment': instance.assignment,
+      'active_geofences': instance.activeGeofences,
     };
 
 const _$CampaignStatusEnumMap = {
@@ -546,7 +882,7 @@ const _$CampaignStatusEnumMap = {
 };
 
 Geofence _$GeofenceFromJson(Map<String, dynamic> json) => Geofence(
-      id: json['id'] as String?,
+      id: json['id'] as String,
       name: json['name'] as String?,
       centerLatitude: (json['centerLatitude'] as num).toDouble(),
       centerLongitude: (json['centerLongitude'] as num).toDouble(),
@@ -590,6 +926,9 @@ Geofence _$GeofenceFromJson(Map<String, dynamic> json) => Geofence(
       totalHoursActive: (json['totalHoursActive'] as num?)?.toDouble(),
       targetDemographics:
           json['targetDemographics'] as Map<String, dynamic>? ?? const {},
+      pickupLocations: (json['pickupLocations'] as List<dynamic>?)
+          ?.map((e) => e as Map<String, dynamic>)
+          .toList(),
     );
 
 Map<String, dynamic> _$GeofenceToJson(Geofence instance) => <String, dynamic>{
@@ -631,6 +970,7 @@ Map<String, dynamic> _$GeofenceToJson(Geofence instance) => <String, dynamic>{
       'successfulVerifications': instance.successfulVerifications,
       'totalHoursActive': instance.totalHoursActive,
       'targetDemographics': instance.targetDemographics,
+      'pickupLocations': instance.pickupLocations,
     };
 
 const _$GeofenceShapeEnumMap = {

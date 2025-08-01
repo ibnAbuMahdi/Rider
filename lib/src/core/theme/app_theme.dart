@@ -11,7 +11,7 @@ class AppTheme {
       useMaterial3: true,
       fontFamily: fontFamily,
       brightness: Brightness.light,
-      primarySwatch: Colors.green,
+      primarySwatch: Colors.purple,
       primaryColor: AppColors.primary,
       scaffoldBackgroundColor: AppColors.background,
       colorScheme: const ColorScheme.light(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../../core/models/campaign.dart';
@@ -7,13 +8,11 @@ import '../../../core/constants/app_constants.dart';
 
 class CampaignCard extends StatelessWidget {
   final Campaign campaign;
-  final VoidCallback? onJoin;
   final VoidCallback? onViewDetails;
 
   const CampaignCard({
     super.key,
     required this.campaign,
-    this.onJoin,
     this.onViewDetails,
   });
 
@@ -59,6 +58,11 @@ class CampaignCard extends StatelessWidget {
   }
 
   Widget _buildStickerPreview() {
+    if (kDebugMode) {
+      print('🖼️ CAMPAIGN CARD: Loading sticker image for ${campaign.name}');
+      print('🖼️ Image URL: ${campaign.stickerImageUrl}');
+    }
+    
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
       child: SizedBox(
@@ -74,7 +78,12 @@ class CampaignCard extends StatelessWidget {
                     child: CircularProgressIndicator(),
                   ),
                 ),
-                errorWidget: (context, url, error) => _buildStickerPlaceholder(),
+                errorWidget: (context, url, error) {
+                  if (kDebugMode) {
+                    print('🖼️ IMAGE ERROR: Failed to load ${campaign.name} sticker: $error');
+                  }
+                  return _buildStickerPlaceholder();
+                },
               )
             : _buildStickerPlaceholder(),
       ),
@@ -83,22 +92,50 @@ class CampaignCard extends StatelessWidget {
 
   Widget _buildStickerPlaceholder() {
     return Container(
-      color: AppColors.surfaceVariant,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.surfaceVariant,
+            AppColors.surfaceVariant.withOpacity(0.7),
+          ],
+        ),
+      ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.image,
-            size: 40,
-            color: AppColors.textSecondary.withOpacity(0.5),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Sticker Preview',
-            style: TextStyle(
-              color: AppColors.textSecondary.withOpacity(0.7),
-              fontSize: 12,
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
             ),
+            child: Icon(
+              Icons.image_outlined,
+              size: 32,
+              color: AppColors.primary.withOpacity(0.6),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Campaign Sticker',
+            style: TextStyle(
+              color: AppColors.textSecondary.withOpacity(0.8),
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            campaign.name ?? 'Preview',
+            style: TextStyle(
+              color: AppColors.textSecondary.withOpacity(0.6),
+              fontSize: 11,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -242,36 +279,19 @@ class CampaignCard extends StatelessWidget {
   }
 
   Widget _buildActionButtons() {
-    return Row(
-      children: [
-        // View details button
-        Expanded(
-          child: OutlinedButton(
-            onPressed: onViewDetails,
-            style: OutlinedButton.styleFrom(
-              side: BorderSide(color: AppColors.primary.withOpacity(0.5)),
-            ),
-            child: const Text('VIEW DETAILS'),
-          ),
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: onViewDetails,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          padding: const EdgeInsets.symmetric(vertical: 12),
         ),
-        
-        const SizedBox(width: 12),
-        
-        // Join button
-        Expanded(
-          flex: 2,
-          child: ElevatedButton(
-            onPressed: campaign.canJoin ? onJoin : null,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: campaign.canJoin ? AppColors.primary : AppColors.textSecondary,
-            ),
-            child: Text(
-              campaign.canJoin ? 'JOIN CAMPAIGN' : 'FULL',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
+        child: const Text(
+          'VIEW DETAILS',
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
-      ],
+      ),
     );
   }
 }

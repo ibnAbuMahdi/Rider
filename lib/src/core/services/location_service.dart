@@ -27,6 +27,14 @@ class LocationService {
   bool _isOnline = false;
   final Connectivity _connectivity = Connectivity();
   
+  // Callback to update the location provider when new position is received
+  Function(Position)? _positionUpdateCallback;
+  
+  // Set the callback to update location provider state
+  void setPositionUpdateCallback(Function(Position) callback) {
+    _positionUpdateCallback = callback;
+  }
+  
   // Enhanced location tracking variables
   final List<LocationRecord> _unsyncedLocations = [];
   double _totalDistance = 0.0;
@@ -34,6 +42,7 @@ class LocationService {
   // Multi-geofence tracking
   String? _currentGeofenceId;
   Geofence? _currentGeofence;
+  List<GeofenceAssignment> _geofenceAssignments = []; // Track assigned geofences
   final Map<String, double> _geofenceDistances = {}; // Track distance per geofence
   final Map<String, double> _geofenceEarnings = {}; // Track earnings per geofence
   final Map<String, DateTime> _geofenceEntryTimes = {}; // Track time spent in each geofence
@@ -326,7 +335,7 @@ class LocationService {
     }
   }
 
-  Future<void> startTracking({String? campaignId, Campaign? campaign}) async {
+  Future<void> startTracking({String? campaignId, Campaign? campaign, List<GeofenceAssignment>? geofenceAssignments}) async {
     if (_isTracking) {
       if (kDebugMode) {
         print('📍 Location tracking already active');
@@ -337,6 +346,12 @@ class LocationService {
     try {
       if (kDebugMode) {
         print('📍 Starting location tracking for campaign: $campaignId');
+        if (geofenceAssignments != null) {
+          print('📍 Geofence assignments: ${geofenceAssignments.length} assignments');
+          for (final assignment in geofenceAssignments) {
+            print('📍   - ${assignment.geofenceName} (${assignment.status.displayName})');
+          }
+        }
       }
       
       if (!await hasLocationPermission()) {
@@ -349,6 +364,7 @@ class LocationService {
       _isTracking = true;
       _activeCampaignId = campaignId;
       _activeCampaign = campaign;
+      _geofenceAssignments = geofenceAssignments ?? [];
       _totalDistance = 0.0;
       
       // Reset geofence tracking data
@@ -362,8 +378,8 @@ class LocationService {
       // Enhanced location settings based on reference implementation
       const locationSettings = LocationSettings(
         accuracy: LocationAccuracy.bestForNavigation, // Better accuracy
-        distanceFilter: 10, // Track every 10 meters (more granular)
-        timeLimit: Duration(seconds: 30), // Timeout for each location request
+        distanceFilter: 0, // Track every 10 meters (more granular)
+        timeLimit: Duration(seconds: 10), // Timeout for each location request
       );
 
       if (kDebugMode) {
@@ -392,8 +408,8 @@ class LocationService {
         },
       );
 
-      // Start geofence monitoring if campaign is provided
-      if (_activeCampaign != null) {
+      // Start geofence monitoring if we have assignments or campaign
+      if (_geofenceAssignments.isNotEmpty || _activeCampaign != null) {
         _startGeofenceMonitoring();
       }
 
@@ -425,8 +441,8 @@ class LocationService {
       
       const locationSettings = LocationSettings(
         accuracy: LocationAccuracy.bestForNavigation,
-        distanceFilter: 10,
-        timeLimit: Duration(seconds: 30),
+        distanceFilter: 0,
+        timeLimit: Duration(seconds: 10),
       );
 
       _positionStream = Geolocator.getPositionStream(
@@ -466,6 +482,7 @@ class LocationService {
       _isTracking = false;
       _activeCampaignId = null;
       _activeCampaign = null;
+      _geofenceAssignments.clear();
       _wasInsideGeofence = false;
       
       // Clear multi-geofence tracking data
@@ -515,6 +532,9 @@ class LocationService {
         print('📍 Processing location update: ${position.latitude}, ${position.longitude}');
         print('📍 Accuracy: ${position.accuracy}m, Speed: ${position.speed}m/s');
       }
+
+      // Update location provider state if callback is set
+      _positionUpdateCallback?.call(position);
 
       // Calculate distance if we have a previous position
       double distanceFromLast = 0.0;
@@ -712,7 +732,7 @@ class LocationService {
 
   // Start geofence monitoring
   void _startGeofenceMonitoring() {
-    if (_activeCampaign == null) return;
+    if (_geofenceAssignments.isEmpty && _activeCampaign == null) return;
 
     _geofenceCheckTimer = Timer.periodic(
       const Duration(seconds: 30), // Check every 30 seconds
@@ -721,35 +741,68 @@ class LocationService {
 
     if (kDebugMode) {
       print('🔍 Geofence monitoring started');
+      print('🔍 Monitoring ${_geofenceAssignments.length} assigned geofences');
     }
   }
 
-  // Check if rider is within campaign geofence - enhanced for multi-geofence support
+  // Check if rider is within assigned geofences - enhanced for assignment-based tracking
   void _checkGeofence() {
-    if (_lastPosition == null || _activeCampaign == null) return;
+    if (_lastPosition == null) return;
 
     // Find which geofences the rider is currently inside
     Geofence? activeGeofence;
     String? activeGeofenceId;
     bool isInsideAnyGeofence = false;
     
-    // Check all geofences and find the highest priority one if multiple
-    for (final geofence in _activeCampaign!.geofences) {
-      final isInside = geofence.containsPoint(
-        _lastPosition!.latitude,
-        _lastPosition!.longitude,
-      );
-      
-      if (isInside) {
-        isInsideAnyGeofence = true;
+    // First check assigned geofences (priority over campaign geofences)
+    if (_geofenceAssignments.isNotEmpty) {
+      for (final assignment in _geofenceAssignments) {
+        // Only check active assignments
+        if (assignment.status != GeofenceAssignmentStatus.active) continue;
         
-        // If no active geofence yet, or this one has higher priority
-        if (activeGeofence == null || 
-            (geofence.isHighPriority && !activeGeofence.isHighPriority) ||
-            (geofence.isHighPriority == activeGeofence.isHighPriority && 
-             (geofence.priority ?? 0) < (activeGeofence.priority ?? 0))) {
-          activeGeofence = geofence;
-          activeGeofenceId = geofence.id;
+        // Find the geofence in the campaign
+        final geofence = _findGeofenceById(assignment.geofenceId);
+        if (geofence == null) continue;
+        
+        final isInside = geofence.containsPoint(
+          _lastPosition!.latitude,
+          _lastPosition!.longitude,
+        );
+        
+        if (isInside) {
+          isInsideAnyGeofence = true;
+          
+          // Prioritize by assignment priority (active assignments have priority)
+          if (activeGeofence == null || 
+              (geofence.isHighPriority && !activeGeofence.isHighPriority) ||
+              (geofence.isHighPriority == activeGeofence.isHighPriority && 
+               (geofence.priority ?? 0) < (activeGeofence.priority ?? 0))) {
+            activeGeofence = geofence;
+            activeGeofenceId = geofence.id;
+          }
+        }
+      }
+    }
+    
+    // Fallback to campaign geofences if no assignments but have active campaign
+    if (!isInsideAnyGeofence && _activeCampaign != null) {
+      for (final geofence in _activeCampaign!.geofences) {
+        final isInside = geofence.containsPoint(
+          _lastPosition!.latitude,
+          _lastPosition!.longitude,
+        );
+        
+        if (isInside) {
+          isInsideAnyGeofence = true;
+          
+          // If no active geofence yet, or this one has higher priority
+          if (activeGeofence == null || 
+              (geofence.isHighPriority && !activeGeofence.isHighPriority) ||
+              (geofence.isHighPriority == activeGeofence.isHighPriority && 
+               (geofence.priority ?? 0) < (activeGeofence.priority ?? 0))) {
+            activeGeofence = geofence;
+            activeGeofenceId = geofence.id;
+          }
         }
       }
     }
@@ -874,9 +927,24 @@ class LocationService {
     }
   }
 
+  // Helper method to find geofence by ID in current campaign or assignments
+  Geofence? _findGeofenceById(String geofenceId) {
+    // First check in active campaign
+    if (_activeCampaign != null) {
+      final geofence = _activeCampaign!.geofences
+          .where((g) => g.id == geofenceId)
+          .firstOrNull;
+      if (geofence != null) return geofence;
+    }
+    
+    // Could add additional fallback logic here if needed
+    return null;
+  }
+
   // Get active campaign info
   String? get activeCampaignId => _activeCampaignId;
   Campaign? get activeCampaign => _activeCampaign;
+  List<GeofenceAssignment> get geofenceAssignments => List.unmodifiable(_geofenceAssignments);
 
   // Check if currently within geofence
   bool get isWithinActiveGeofence {
@@ -898,8 +966,39 @@ class LocationService {
     return _geofenceEarnings.values.fold(0.0, (sum, earnings) => sum + earnings);
   }
 
-  // Calculate earnings eligibility based on location
+  // Update geofence assignments during runtime (called when getMyCampaigns() detects changes)
+  Future<void> updateGeofenceAssignments(List<GeofenceAssignment> newAssignments) async {
+    if (kDebugMode) {
+      print('📍 Updating geofence assignments: ${newAssignments.length} assignments');
+    }
+    
+    _geofenceAssignments = newAssignments;
+    
+    // If we're tracking and now have assignments, start monitoring
+    if (_isTracking && _geofenceAssignments.isNotEmpty) {
+      if (_geofenceCheckTimer == null) {
+        _startGeofenceMonitoring();
+      }
+    }
+    
+    // If no assignments left, we might need to stop specific monitoring
+    if (_geofenceAssignments.isEmpty && _activeCampaign == null) {
+      _geofenceCheckTimer?.cancel();
+      _geofenceCheckTimer = null;
+      if (kDebugMode) {
+        print('📍 No assignments or campaign - stopped geofence monitoring');
+      }
+    }
+  }
+
+  // Calculate earnings eligibility based on location (enhanced for assignments)
   bool isEligibleForEarnings() {
+    // If tracking with assignments, check if inside assigned geofence
+    if (_isTracking && _geofenceAssignments.isNotEmpty) {
+      return _wasInsideGeofence && _currentGeofenceId != null;
+    }
+    
+    // Fallback to campaign-based eligibility
     return _isTracking && 
            _activeCampaign != null && 
            _wasInsideGeofence;

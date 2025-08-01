@@ -37,11 +37,288 @@ enum CampaignStatus {
   }
 }
 
+@HiveType(typeId: 26)
+enum GeofenceAssignmentStatus {
+  @HiveField(0)
+  assigned,
+  @HiveField(1)
+  active,
+  @HiveField(2)
+  paused,
+  @HiveField(3)
+  completed,
+  @HiveField(4)
+  cancelled;
+  
+  String get displayName {
+    switch (this) {
+      case GeofenceAssignmentStatus.assigned:
+        return 'Assigned';
+      case GeofenceAssignmentStatus.active:
+        return 'Active';
+      case GeofenceAssignmentStatus.paused:
+        return 'Paused';
+      case GeofenceAssignmentStatus.completed:
+        return 'Completed';
+      case GeofenceAssignmentStatus.cancelled:
+        return 'Cancelled';
+    }
+  }
+}
+
+@HiveType(typeId: 27)
+@JsonSerializable()
+class GeofenceAssignment {
+  @HiveField(0)
+  @JsonKey(name: 'geofence_id')
+  final String geofenceId;
+  
+  @HiveField(1)
+  @JsonKey(name: 'geofence_name')
+  final String geofenceName;
+  
+  @HiveField(2)
+  final GeofenceAssignmentStatus status;
+  
+  @HiveField(3)
+  @JsonKey(name: 'started_at')
+  final DateTime? startedAt;
+  
+  @HiveField(4)
+  @JsonKey(name: 'completed_at')
+  final DateTime? endedAt;
+  
+  @HiveField(5)
+  @JsonKey(name: 'center_latitude')
+  final double centerLatitude;
+  
+  @HiveField(6)
+  @JsonKey(name: 'center_longitude')
+  final double centerLongitude;
+  
+  @HiveField(7)
+  @JsonKey(name: 'radius_meters')
+  final int radiusMeters;
+  
+  @HiveField(8)
+  @JsonKey(name: 'rate_per_km')
+  final double? ratePerKm;
+  
+  @HiveField(9)
+  @JsonKey(name: 'rate_per_hour')
+  final double? ratePerHour;
+  
+  @HiveField(10)
+  @JsonKey(name: 'fixed_daily_rate')
+  final double? fixedDailyRate;
+  
+  @HiveField(11)
+  @JsonKey(name: 'earnings_from_geofence')
+  final double? amountEarned;
+  
+  @HiveField(12)
+  @JsonKey(name: 'distance_covered')
+  final double? distanceCovered;
+  
+  @HiveField(13)
+  @JsonKey(name: 'hours_active')
+  final double? hoursActive;
+
+  // New fields for map display (from enhanced backend serializer)
+  @HiveField(14)
+  @JsonKey(name: 'centerLatitude')
+  final double? centerLatitudeCamelCase;
+  
+  @HiveField(15)
+  @JsonKey(name: 'centerLongitude')
+  final double? centerLongitudeCamelCase;
+  
+  @HiveField(16)
+  @JsonKey(name: 'radius')
+  final int? radius;
+  
+  @HiveField(17)
+  @JsonKey(name: 'displayColor')
+  final int? displayColor;
+  
+  @HiveField(18)
+  @JsonKey(name: 'displayAlpha')
+  final double? displayAlpha;
+  
+  @HiveField(19)
+  @JsonKey(name: 'isHighPriority')
+  final bool? isHighPriority;
+  
+  @HiveField(20)
+  @JsonKey(name: 'name')
+  final String? name;
+  
+  @HiveField(21)
+  @JsonKey(name: 'budget')
+  final double? budget;
+  
+  @HiveField(22)
+  @JsonKey(name: 'spent')
+  final double? spent;
+  
+  @HiveField(23)
+  @JsonKey(name: 'remainingBudget')
+  final double? remainingBudget;
+  
+  @HiveField(24)
+  @JsonKey(name: 'maxRiders')
+  final int? maxRiders;
+  
+  @HiveField(25)
+  @JsonKey(name: 'currentRiders')
+  final int? currentRiders;
+  
+  @HiveField(26)
+  @JsonKey(name: 'isActive')
+  final bool? isActiveFromBackend;
+
+  const GeofenceAssignment({
+    required this.geofenceId,
+    required this.geofenceName,
+    required this.status,
+    this.startedAt,
+    this.endedAt,
+    required this.centerLatitude,
+    required this.centerLongitude,
+    required this.radiusMeters,
+    this.ratePerKm,
+    this.ratePerHour,
+    this.fixedDailyRate,
+    this.amountEarned,
+    this.distanceCovered,
+    this.hoursActive,
+    // New display fields
+    this.centerLatitudeCamelCase,
+    this.centerLongitudeCamelCase,
+    this.radius,
+    this.displayColor,
+    this.displayAlpha,
+    this.isHighPriority,
+    this.name,
+    this.budget,
+    this.spent,
+    this.remainingBudget,
+    this.maxRiders,
+    this.currentRiders,
+    this.isActiveFromBackend,
+  });
+
+  factory GeofenceAssignment.fromJson(Map<String, dynamic> json) => _$GeofenceAssignmentFromJson(json);
+  Map<String, dynamic> toJson() => _$GeofenceAssignmentToJson(this);
+
+  GeofenceAssignment copyWith({
+    String? geofenceId,
+    String? geofenceName,
+    GeofenceAssignmentStatus? status,
+    DateTime? startedAt,
+    DateTime? endedAt,
+    double? centerLatitude,
+    double? centerLongitude,
+    int? radiusMeters,
+    double? ratePerKm,
+    double? ratePerHour,
+    double? fixedDailyRate,
+    double? amountEarned,
+    double? distanceCovered,
+    double? hoursActive,
+    double? centerLatitudeCamelCase,
+    double? centerLongitudeCamelCase,
+    int? radius,
+    int? displayColor,
+    double? displayAlpha,
+    bool? isHighPriority,
+    String? name,
+    double? budget,
+    double? spent,
+    double? remainingBudget,
+    int? maxRiders,
+    int? currentRiders,
+    bool? isActiveFromBackend,
+  }) {
+    return GeofenceAssignment(
+      geofenceId: geofenceId ?? this.geofenceId,
+      geofenceName: geofenceName ?? this.geofenceName,
+      status: status ?? this.status,
+      startedAt: startedAt ?? this.startedAt,
+      endedAt: endedAt ?? this.endedAt,
+      centerLatitude: centerLatitude ?? this.centerLatitude,
+      centerLongitude: centerLongitude ?? this.centerLongitude,
+      radiusMeters: radiusMeters ?? this.radiusMeters,
+      ratePerKm: ratePerKm ?? this.ratePerKm,
+      ratePerHour: ratePerHour ?? this.ratePerHour,
+      fixedDailyRate: fixedDailyRate ?? this.fixedDailyRate,
+      amountEarned: amountEarned ?? this.amountEarned,
+      distanceCovered: distanceCovered ?? this.distanceCovered,
+      hoursActive: hoursActive ?? this.hoursActive,
+      centerLatitudeCamelCase: centerLatitudeCamelCase ?? this.centerLatitudeCamelCase,
+      centerLongitudeCamelCase: centerLongitudeCamelCase ?? this.centerLongitudeCamelCase,
+      radius: radius ?? this.radius,
+      displayColor: displayColor ?? this.displayColor,
+      displayAlpha: displayAlpha ?? this.displayAlpha,
+      isHighPriority: isHighPriority ?? this.isHighPriority,
+      name: name ?? this.name,
+      budget: budget ?? this.budget,
+      spent: spent ?? this.spent,
+      remainingBudget: remainingBudget ?? this.remainingBudget,
+      maxRiders: maxRiders ?? this.maxRiders,
+      currentRiders: currentRiders ?? this.currentRiders,
+      isActiveFromBackend: isActiveFromBackend ?? this.isActiveFromBackend,
+    );
+  }
+
+  bool get isActive => status == GeofenceAssignmentStatus.active;
+  bool get isAssigned => status == GeofenceAssignmentStatus.assigned;
+}
+
+@HiveType(typeId: 28)
+@JsonSerializable()
+class CampaignAssignment {
+  @HiveField(0)
+  final String status;
+  
+  @HiveField(1)
+  @JsonKey(name: 'assigned_at')
+  final DateTime? assignedAt;
+  
+  @HiveField(2)
+  @JsonKey(name: 'accepted_at')
+  final DateTime? acceptedAt;
+  
+  @HiveField(3)
+  @JsonKey(name: 'verification_count')
+  final int verificationCount;
+  
+  @HiveField(4)
+  @JsonKey(name: 'compliance_score')
+  final double complianceScore;
+  
+  @HiveField(5)
+  @JsonKey(name: 'amount_earned')
+  final double amountEarned;
+
+  const CampaignAssignment({
+    required this.status,
+    this.assignedAt,
+    this.acceptedAt,
+    required this.verificationCount,
+    required this.complianceScore,
+    required this.amountEarned,
+  });
+
+  factory CampaignAssignment.fromJson(Map<String, dynamic> json) => _$CampaignAssignmentFromJson(json);
+  Map<String, dynamic> toJson() => _$CampaignAssignmentToJson(this);
+}
+
 @HiveType(typeId: 1)
 @JsonSerializable()
 class Campaign {
   @HiveField(0)
-  final String? id;
+  final String id;
   
   @HiveField(1)
   final String? name;
@@ -53,7 +330,7 @@ class Campaign {
   final String? clientName;
   
   @HiveField(4)
-  final String? agencyId;
+  final String agencyId;
   
   @HiveField(5)
   final String? agencyName;
@@ -127,13 +404,20 @@ class Campaign {
   @HiveField(27)
   @JsonKey(fromJson: _stringToDouble, toJson: _doubleToString) 
   final double? spent;
+  
+  @HiveField(28)
+  final CampaignAssignment? assignment;
+  
+  @HiveField(29)
+  @JsonKey(name: 'active_geofences')
+  final List<GeofenceAssignment> activeGeofences;
 
   const Campaign({
-    this.id,
+    required this.id,
     this.name,
     this.description,
     this.clientName,
-    this.agencyId,
+    required this.agencyId,
     this.agencyName,
     this.stickerImageUrl,
     this.ratePerKm,
@@ -157,10 +441,62 @@ class Campaign {
     this.totalDistanceCovered,
     this.budget,
     this.spent,
+    this.assignment,
+    this.activeGeofences = const [],
   });
 
   factory Campaign.fromJson(Map<String, dynamic> json) => _$CampaignFromJson(json);
   Map<String, dynamic> toJson() => _$CampaignToJson(this);
+
+  /// Specialized factory for my-campaigns API response
+  factory Campaign.fromMyCampaignsJson(Map<String, dynamic> json) {
+    return Campaign(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      description: json['description'] as String? ?? '',
+      clientName: json['client_name'] as String? ?? '',
+      agencyId: json['agency_id'] as String? ?? '',
+      agencyName: json['agency_name'] as String? ?? '',
+      stickerImageUrl: json['sticker_image_url'] as String?,
+      ratePerKm: _stringToDouble(json['rate_per_km']),
+      ratePerHour: _stringToDouble(json['rate_per_hour']),
+      fixedDailyRate: _stringToDouble(json['platform_rate']),
+      startDate: json['start_date'] != null ? DateTime.parse(json['start_date'] as String) : null,
+      endDate: json['end_date'] != null ? DateTime.parse(json['end_date'] as String) : null,
+      status: _parseStatus(json['status'] as String?),
+      maxRiders: _stringToInt(json['max_riders']),
+      currentRiders: _stringToInt(json['current_riders']),
+      requirements: const CampaignRequirements(),
+      estimatedWeeklyEarnings: _stringToDouble(json['estimated_weekly_earnings']),
+      area: json['area'] as String?,
+      targetAudiences: (json['target_audiences'] as List<dynamic>?)?.cast<String>() ?? [],
+      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'] as String) : null,
+      updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at'] as String) : null,
+      isActive: json['is_active'] as bool? ?? false,
+      totalVerifications: _stringToInt(json['total_verifications']),
+      totalDistanceCovered: _stringToDouble(json['total_distance_covered']),
+      budget: _stringToDouble(json['budget']),
+      spent: _stringToDouble(json['spent']),
+      assignment: json['assignment'] != null 
+          ? CampaignAssignment.fromJson(json['assignment'] as Map<String, dynamic>)
+          : null,
+      activeGeofences: (json['active_geofences'] as List<dynamic>?)
+          ?.map((g) => GeofenceAssignment.fromJson(g as Map<String, dynamic>))
+          .toList() ?? [],
+    );
+  }
+
+  static CampaignStatus _parseStatus(String? status) {
+    switch (status) {
+      case 'draft': return CampaignStatus.draft;
+      case 'pending': return CampaignStatus.pending;
+      case 'active': return CampaignStatus.running;
+      case 'paused': return CampaignStatus.paused;
+      case 'completed': return CampaignStatus.completed;
+      case 'cancelled': return CampaignStatus.cancelled;
+      default: return CampaignStatus.draft;
+    }
+  }
 
 // Helper functions for JSON conversion
   static double? _stringToDouble(dynamic value) {
@@ -210,6 +546,8 @@ class Campaign {
     double? totalDistanceCovered,
     double? budget,
     double? spent,
+    CampaignAssignment? assignment,
+    List<GeofenceAssignment>? activeGeofences,
   }) {
     return Campaign(
       id: id ?? this.id,
@@ -240,6 +578,8 @@ class Campaign {
       totalDistanceCovered: totalDistanceCovered ?? this.totalDistanceCovered,
       budget: budget ?? this.budget,
       spent: spent ?? this.spent,
+      assignment: assignment ?? this.assignment,
+      activeGeofences: activeGeofences ?? this.activeGeofences,
     );
   }
 
@@ -281,6 +621,20 @@ class Campaign {
     return endDate!.difference(now);
   }
   
+  // Geofence assignment getters
+  bool get hasActiveGeofenceAssignments => activeGeofences.any((g) => g.isActive);
+  
+  List<GeofenceAssignment> get currentActiveGeofences => 
+      activeGeofences.where((g) => g.isActive).toList();
+  
+  GeofenceAssignment? get primaryActiveGeofence => 
+      currentActiveGeofences.isNotEmpty ? currentActiveGeofences.first : null;
+      
+  bool get isAssignedToGeofences => activeGeofences.isNotEmpty;
+  
+  double get totalEarnedFromGeofences => 
+      activeGeofences.fold(0.0, (sum, g) => sum + (g.amountEarned ?? 0.0));
+  
   Duration get timeToStart {
     final now = DateTime.now();
     if (startDate == null || now.isAfter(startDate!)) return Duration.zero;
@@ -300,7 +654,7 @@ class Campaign {
       other is Campaign && runtimeType == other.runtimeType && id == other.id;
 
   @override
-  int get hashCode => id?.hashCode ?? 0;
+  int get hashCode => id.hashCode ?? 0;
 
   @override
   String toString() {
@@ -312,7 +666,7 @@ class Campaign {
 @JsonSerializable()
 class Geofence {
   @HiveField(0)
-  final String? id;
+  final String id;
   
   @HiveField(1)
   final String? name;
@@ -427,8 +781,12 @@ class Geofence {
   @HiveField(37)
   final Map<String, dynamic>? targetDemographics;
 
+  // Pickup Locations fields (multiple)
+  @HiveField(38)
+  final List<Map<String, dynamic>>? pickupLocations;
+
   const Geofence({
-    this.id,
+    required this.id,
     this.name,
     required this.centerLatitude,
     required this.centerLongitude,
@@ -482,6 +840,9 @@ class Geofence {
     this.successfulVerifications,
     this.totalHoursActive,
     this.targetDemographics = const {},
+    
+    // Pickup locations
+    this.pickupLocations,
   });
 
   factory Geofence.fromJson(Map<String, dynamic> json) => _$GeofenceFromJson(json);
@@ -670,6 +1031,58 @@ class Geofence {
       'total_hours_active': totalHoursActive,
       'has_performance_data': hasPerformanceData,
     };
+  }
+  
+  /// Check if this geofence has pickup locations
+  bool get hasPickupLocations => pickupLocations != null && pickupLocations!.isNotEmpty;
+  
+  /// Get number of pickup locations
+  int get pickupLocationCount => pickupLocations?.length ?? 0;
+  
+  /// Get all active pickup locations
+  List<Map<String, dynamic>> get activePickupLocations {
+    if (!hasPickupLocations) return [];
+    return pickupLocations!.where((location) => location['is_active'] == true).toList();
+  }
+  
+  /// Get primary pickup location (first active one)
+  Map<String, dynamic>? get primaryPickupLocation {
+    final active = activePickupLocations;
+    return active.isNotEmpty ? active.first : null;
+  }
+  
+  /// Get pickup location addresses
+  List<String> get pickupAddresses {
+    if (!hasPickupLocations) return [];
+    return pickupLocations!
+        .where((location) => location['address'] != null)
+        .map((location) => location['address'] as String)
+        .toList();
+  }
+  
+  /// Get primary pickup address
+  String? get primaryPickupAddress => primaryPickupLocation?['address'];
+  
+  /// Get primary pickup contact name
+  String? get primaryPickupContactName => primaryPickupLocation?['contact_name'];
+  
+  /// Get primary pickup contact phone
+  String? get primaryPickupContactPhone => primaryPickupLocation?['contact_phone'];
+  
+  /// Get primary pickup instructions
+  String? get primaryPickupInstructions => primaryPickupLocation?['pickup_instructions'];
+  
+  /// Get primary pickup landmark
+  String? get primaryPickupLandmark => primaryPickupLocation?['landmark'];
+  
+  /// Check if primary pickup location is active
+  bool get isPrimaryPickupLocationActive => primaryPickupLocation?['is_active'] == true;
+  
+  /// Get today's pickup hours for primary location
+  String get primaryPickupHoursToday {
+    if (!hasPickupLocations) return 'No pickup locations';
+    final hours = primaryPickupLocation?['today_hours'];
+    return hours ?? 'Contact for hours';
   }
 }
 

@@ -1,52 +1,76 @@
-import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
 import '../models/location_record.dart';
 import '../storage/hive_service.dart';
 import 'api_service.dart';
 
 class LocationApiService {
   final ApiService _apiService;
+  final Uuid _uuid = const Uuid();
 
   LocationApiService(this._apiService);
 
-  // Upload location records to server
-  Future<bool> uploadLocations(List<LocationRecord> locations) async {
-    if (locations.isEmpty) return true;
+  /// Truncates accuracy to 8 digits maximum for consistency
+  static double _truncateAccuracy(double accuracy) {
+    final accuracyString = accuracy.toString();
+    if (accuracyString.length <= 8) {
+      return accuracy;
+    }
+    
+    final truncated = accuracyString.substring(0, 8);
+    return double.tryParse(truncated) ?? accuracy;
+  }
+
+  // Upload location records to server using new tracking endpoint
+  Future<Map<String, dynamic>> uploadLocations(List<LocationRecord> locations) async {
+    if (locations.isEmpty) {
+      return {'success': true, 'processed_count': 0, 'failed_count': 0};
+    }
 
     try {
+      final batchId = _uuid.v4();
+      if (kDebugMode) {
+        print('📍 Syncing ${locations.length} locations with batch ID: $batchId');
+      }
+      
+      // Convert location records to new API format
       final locationData = locations.map((location) => {
-        'id': location.id,
-        'rider_id': location.riderId,
-        'campaign_id': location.campaignId,
+        'mobile_id': location.id,
         'latitude': location.latitude,
         'longitude': location.longitude,
         'accuracy': location.accuracy,
         'speed': location.speed,
         'heading': location.heading,
         'altitude': location.altitude,
-        'timestamp': location.timestamp.toIso8601String(),
+        'recorded_at': location.timestamp.toIso8601String(),
         'is_working': location.isWorking,
-        'created_at': location.createdAt.toIso8601String(),
+        'campaign_id': location.campaignId,
+        'metadata': location.metadata ?? {},
       }).toList();
 
-      final response = await _apiService.post('/rider/locations/bulk/', 
-        data: {
-          'locations': locationData,
-        });
-
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        if (kDebugMode) {
-          print('📍 Successfully uploaded ${locations.length} locations');
-        }
-        return true;
+      final result = await _apiService.syncLocationBatch(locationData, batchId);
+      
+      if (kDebugMode) {
+        print('📍 Batch sync result: $result');
       }
+      
+      // Mark successfully synced locations as synced
+      if (result['processed_count'] != null && result['processed_count'] > 0) {
+        await _markLocationsAsSynced(locations, result);
+      }
+      
+      return result;
 
-      return false;
     } catch (e) {
       if (kDebugMode) {
         print('❌ Failed to upload locations: $e');
       }
-      return false;
+      return {
+        'success': false,
+        'error': e.toString(),
+        'processed_count': 0,
+        'failed_count': locations.length,
+      };
     }
   }
 
@@ -136,18 +160,111 @@ class LocationApiService {
     }
   }
 
+  // Mark locations as synced in local storage
+  Future<void> _markLocationsAsSynced(
+    List<LocationRecord> locations, 
+    Map<String, dynamic> syncResult
+  ) async {
+    try {
+      // Get the list of successfully processed mobile IDs
+      final processedCount = syncResult['processed_count'] as int? ?? 0;
+      final errors = syncResult['errors'] as List? ?? [];
+      
+      // Create a set of failed mobile IDs for quick lookup
+      final failedMobileIds = <String>{};
+      for (final error in errors) {
+        if (error is Map<String, dynamic> && error['mobile_id'] != null) {
+          failedMobileIds.add(error['mobile_id'] as String);
+        }
+      }
+      
+      // Mark locations as synced if they weren't in the failed list
+      int marked = 0;
+      for (final location in locations) {
+        if (!failedMobileIds.contains(location.id) && marked < processedCount) {
+          final syncedLocation = location.copyWith(isSynced: true);
+          await HiveService.updateLocationRecord(syncedLocation);
+          marked++;
+        }
+      }
+      
+      if (kDebugMode) {
+        print('📍 Marked $marked locations as synced');
+      }
+      
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to mark locations as synced: $e');
+      }
+    }
+  }
+
+  // Get tracking statistics from backend
+  Future<Map<String, dynamic>> getTrackingStats() async {
+    try {
+      return await _apiService.getTrackingStats();
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to get tracking stats: $e');
+      }
+      return {
+        'today_distance': 0.0,
+        'today_earnings': 0.0,
+        'today_sessions': 0,
+        'week_distance': 0.0,
+        'week_earnings': 0.0,
+        'month_distance': 0.0,
+        'month_earnings': 0.0,
+        'active_geofences': <String>[],
+        'pending_sync_count': 0,
+        'last_sync': null,
+      };
+    }
+  }
+
+  // Calculate earnings on backend
+  Future<Map<String, dynamic>> calculateEarnings({
+    required String mobileId,
+    required int geofenceId,
+    required String earningsType,
+    required double distanceKm,
+    required double durationHours,
+    required int verificationsCompleted,
+    required DateTime earnedAt,
+    Map<String, dynamic>? metadata,
+  }) async {
+    try {
+      return await _apiService.calculateEarnings(
+        mobileId: mobileId,
+        geofenceId: geofenceId,
+        earningsType: earningsType,
+        distanceKm: distanceKm,
+        durationHours: durationHours,
+        verificationsCompleted: verificationsCompleted,
+        earnedAt: earnedAt,
+        metadata: metadata,
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to calculate earnings: $e');
+      }
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
   // Sync all pending location data
-  Future<void> syncAllLocationData() async {
+  Future<Map<String, dynamic>> syncAllLocationData() async {
     try {
       // Get unsynced locations
       final unsyncedLocations = HiveService.getUnsyncedLocations();
       if (unsyncedLocations.isNotEmpty) {
-        final success = await uploadLocations(unsyncedLocations);
-        if (success) {
-          // Mark as synced
-          final locationIds = unsyncedLocations.map((l) => l.id).toList();
-          await HiveService.markLocationsSynced(locationIds);
+        final result = await uploadLocations(unsyncedLocations);
+        if (result['success'] == true) {
+          if (kDebugMode) {
+            print('📍 Successfully synced ${result['processed_count']} locations');
+          }
         }
+        return result;
       }
 
       // Get and upload geofence events
@@ -163,10 +280,13 @@ class LocationApiService {
       if (kDebugMode) {
         print('📍 Location data sync completed');
       }
+      
+      return {'success': true, 'processed_count': 0, 'message': 'No data to sync'};
     } catch (e) {
       if (kDebugMode) {
         print('❌ Failed to sync location data: $e');
       }
+      return {'success': false, 'error': e.toString()};
     }
   }
 

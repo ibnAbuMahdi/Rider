@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/providers/auth_provider.dart';
+import '../../../core/providers/campaign_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../shared/widgets/loading_button.dart';
 import '../../shared/widgets/stika_logo.dart';
@@ -261,6 +263,15 @@ class _OTPVerificationScreenState extends ConsumerState<OTPVerificationScreen> {
     if (success && mounted) {
       // Check if rider has completed onboarding
       final rider = ref.read(authProvider).rider;
+      
+      // Load my campaigns with geofence assignments after successful login
+      // This is crucial for geofence-aware random verification
+      // REMOVED: Campaign loading moved to home screen to avoid duplicate calls
+      // The home screen will handle all data loading after authentication
+      if (kDebugMode) {
+        print('🎯 OTP SUCCESS: Authentication complete, letting home screen handle data loading');
+      }
+      
       if (rider?.hasCompletedOnboarding == true) {
         context.go('/home');
       } else {

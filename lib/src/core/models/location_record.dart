@@ -49,13 +49,13 @@ class LocationRecord {
   @HiveField(13)
   final Map<String, dynamic>? metadata;
 
-  const LocationRecord({
+  LocationRecord({
     required this.id,
     required this.riderId,
     this.campaignId,
     required this.latitude,
     required this.longitude,
-    required this.accuracy,
+    required double accuracy,
     this.speed,
     this.heading,
     this.altitude,
@@ -64,7 +64,7 @@ class LocationRecord {
     this.isSynced = false,
     required this.createdAt,
     this.metadata,
-  });
+  }) : accuracy = _truncateAccuracy(accuracy);
 
   factory LocationRecord.fromJson(Map<String, dynamic> json) =>
       _$LocationRecordFromJson(json);
@@ -130,6 +130,21 @@ class LocationRecord {
 
   double _degreesToRadians(double degrees) {
     return degrees * (3.14159265359 / 180);
+  }
+
+  /// Truncates accuracy to 8 digits maximum
+  /// This ensures accuracy values stay within reasonable bounds
+  static double _truncateAccuracy(double accuracy) {
+    // Convert to string with maximum 8 significant digits and back to double
+    // For accuracy values (typically in meters), limit to 8 total digits
+    final accuracyString = accuracy.toString();
+    if (accuracyString.length <= 8) {
+      return accuracy;
+    }
+    
+    // If more than 8 digits, truncate to 8 characters
+    final truncated = accuracyString.substring(0, 8);
+    return double.tryParse(truncated) ?? accuracy;
   }
 
   @override

@@ -5,6 +5,7 @@ import '../models/location_record.dart';
 import '../models/payment_summary.dart';
 import '../services/earnings_service.dart';
 import '../services/api_service.dart';
+import '../services/location_api_service.dart';
 import '../storage/hive_service.dart';
 
 // Earnings state
@@ -293,7 +294,7 @@ class EarningsNotifier extends StateNotifier<EarningsState> {
 
 // Providers
 final earningsServiceProvider = Provider<EarningsService>((ref) {
-  return EarningsService(ApiService());
+  return EarningsService(ApiService.instance, LocationApiService(ApiService.instance));
 });
 
 final earningsProvider = StateNotifierProvider.autoDispose<EarningsNotifier, EarningsState>((ref) {

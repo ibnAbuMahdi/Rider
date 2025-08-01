@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/theme/app_colors.dart';
 
 class StikaLogo extends StatelessWidget {
@@ -16,29 +17,15 @@ class StikaLogo extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Logo icon - for now using a placeholder
-        Container(
+        // Logo icon
+        SizedBox(
           width: size,
           height: size,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: AppColors.primaryGradient,
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(size * 0.2),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primary.withOpacity(0.3),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-          child: Icon(
-            Icons.directions_bike,
-            size: size * 0.5,
-            color: Colors.white,
+          child: SvgPicture.asset(
+            'assets/icons/tricycle.svg',
+            width: size,
+            height: size,
+            fit: BoxFit.contain,
           ),
         ),
         

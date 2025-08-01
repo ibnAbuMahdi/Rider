@@ -240,4 +240,150 @@ class VerificationService {
       // Silently fail for reporting - don't block user flow
     }
   }
+
+  // Random verification methods for geofence-aware implementation
+
+  Future<VerificationResult> createRandomVerification({
+    required double latitude,
+    required double longitude,
+    required double accuracy,
+    String? campaignId,
+  }) async {
+    try {
+      final formData = {
+        'latitude': latitude.toString(),
+        'longitude': longitude.toString(),
+        'accuracy': double.parse(accuracy.toStringAsFixed(2)),
+        if (campaignId != null) 'campaign_id': campaignId,
+      };
+
+      final response = await _apiService.post(
+        '/verifications/create-random/',
+        data: formData,
+      );
+
+      if (response.statusCode == 201) {
+        return VerificationResult(
+          success: true,
+          data: response.data,
+          request: response.data['verification'] != null 
+              ? VerificationRequest.fromJson(response.data['verification'])
+              : null,
+        );
+      } else {
+        return VerificationResult(
+          success: false,
+          error: response.data['message'] ?? 'Failed to create verification',
+        );
+      }
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 400) {
+        final errorData = e.response?.data;
+        String errorMessage = 'Invalid request';
+        
+        if (errorData != null) {
+          if (errorData['reason'] == 'no_active_geofence_assignment') {
+            errorMessage = 'No active geofence assignment found';
+          } else if (errorData['reason'] == 'out_of_assigned_geofence') {
+            final assignedGeofences = errorData['assigned_geofences'] as List?;
+            if (assignedGeofences != null && assignedGeofences.isNotEmpty) {
+              errorMessage = 'You must be within your assigned geofence area: ${assignedGeofences.join(', ')}';
+            } else {
+              errorMessage = 'You must be within your assigned geofence area';
+            }
+          } else {
+            errorMessage = errorData['message'] ?? errorMessage;
+          }
+        }
+        
+        return VerificationResult(
+          success: false,
+          error: errorMessage,
+        );
+      } else if (e.response?.statusCode == 429) {
+        final errorData = e.response?.data;
+        final retryAfter = errorData?['retry_after_seconds'] ?? 60;
+        return VerificationResult(
+          success: false,
+          error: 'Please wait $retryAfter seconds before requesting another verification',
+        );
+      }
+      throw Exception('Network error: ${e.message}');
+    } catch (e) {
+      throw Exception('Failed to create random verification: $e');
+    }
+  }
+
+  Future<VerificationRequest?> checkPendingVerifications() async {
+    try {
+      final response = await _apiService.get('/verifications/pending/');
+      
+      if (response.statusCode == 200 && response.data['has_pending'] == true) {
+        return VerificationRequest.fromJson(response.data['verification']);
+      }
+      return null;
+    } catch (e) {
+      throw Exception('Failed to check pending verifications: $e');
+    }
+  }
+
+  Future<VerificationResult> submitRandomVerification({
+    required String verificationId,
+    required String imagePath,
+    required double latitude,
+    required double longitude,
+    required double accuracy,
+  }) async {
+    try {
+      final compressedImagePath = await _compressImage(imagePath);
+      
+      final formData = FormData.fromMap({
+        'verification_id': verificationId,
+        'image': await MultipartFile.fromFile(
+          compressedImagePath,
+          filename: 'verification_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        ),
+        'latitude': latitude.toString(),
+        'longitude': longitude.toString(),
+        'accuracy': accuracy.toString(),
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+
+      final response = await _apiService.post(
+        '/verifications/submit/',
+        data: formData,
+        options: Options(
+          headers: {'Content-Type': 'multipart/form-data'},
+        ),
+      );
+
+      if (response.statusCode == 200) {
+        return VerificationResult(
+          success: true,
+          data: response.data,
+        );
+      } else {
+        return VerificationResult(
+          success: false,
+          error: response.data['message'] ?? 'Verification failed',
+        );
+      }
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 400) {
+        final errorData = e.response?.data;
+        return VerificationResult(
+          success: false,
+          error: errorData['message'] ?? 'Verification submission failed',
+        );
+      } else if (e.response?.statusCode == 413) {
+        return const VerificationResult(
+          success: false,
+          error: 'Image file too large. Please try again.',
+        );
+      }
+      throw Exception('Network error: ${e.message}');
+    } catch (e) {
+      throw Exception('Failed to submit verification: $e');
+    }
+  }
 }

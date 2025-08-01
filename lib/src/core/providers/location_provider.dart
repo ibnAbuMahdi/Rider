@@ -48,6 +48,11 @@ class LocationNotifier extends StateNotifier<LocationState> {
 
   LocationNotifier(this._locationService) : super(const LocationState()) {
     _checkPermissions();
+    
+    // Set up callback so LocationService can update our state during tracking
+    _locationService.setPositionUpdateCallback((position) {
+      updateCurrentPosition(position);
+    });
   }
 
   Future<void> _checkPermissions() async {
@@ -138,7 +143,7 @@ class LocationNotifier extends StateNotifier<LocationState> {
     }
   }
 
-  Future<void> startTracking({String? campaignId}) async {
+  Future<void> startTracking({String? campaignId, Campaign? campaign, List<GeofenceAssignment>? geofenceAssignments}) async {
     try {
       if (!state.hasPermission) {
         final granted = await requestPermissions();
@@ -154,10 +159,17 @@ class LocationNotifier extends StateNotifier<LocationState> {
         activeCampaignId: campaignId,
       );
 
-      await _locationService.startTracking(campaignId: campaignId);
+      await _locationService.startTracking(
+        campaignId: campaignId,
+        campaign: campaign,
+        geofenceAssignments: geofenceAssignments,
+      );
       
       if (kDebugMode) {
         print('📍 Location tracking started for campaign: $campaignId');
+        if (geofenceAssignments != null) {
+          print('📍 With ${geofenceAssignments.length} geofence assignments');
+        }
       }
     } catch (e) {
       state = state.copyWith(
@@ -236,6 +248,24 @@ class LocationNotifier extends StateNotifier<LocationState> {
     await _locationService.markLocationsSynced(locationIds);
     await refreshRecentLocations();
   }
+
+  // Update geofence assignments for runtime changes (called when getMyCampaigns() detects changes)
+  Future<void> updateGeofenceAssignments(List<GeofenceAssignment> assignments) async {
+    await _locationService.updateGeofenceAssignments(assignments);
+    
+    if (kDebugMode) {
+      print('📍 LOCATION PROVIDER: Updated geofence assignments (${assignments.length} assignments)');
+    }
+  }
+
+  // Update current position during tracking (called by LocationService)
+  void updateCurrentPosition(Position position) {
+    state = state.copyWith(currentPosition: position);
+    
+    if (kDebugMode) {
+      print('📍 LOCATION PROVIDER: Updated current position from tracking: ${position.latitude}, ${position.longitude}');
+    }
+  }
 }
 
 // Providers
@@ -277,4 +307,146 @@ final isOnlineProvider = Provider<bool>((ref) {
 final unsyncedLocationCountProvider = Provider<int>((ref) {
   final locationService = ref.watch(locationServiceProvider);
   return locationService.unsyncedLocationCount;
+});
+
+// Additional providers for tracking UI
+final totalGeofenceEarningsProvider = Provider<double>((ref) {
+  final locationService = ref.watch(locationServiceProvider);
+  return locationService.totalGeofenceEarnings;
+});
+
+final currentGeofenceProvider = Provider<dynamic>((ref) {
+  final locationService = ref.watch(locationServiceProvider);
+  return locationService.currentGeofence;
+});
+
+final isWithinActiveGeofenceProvider = Provider<bool>((ref) {
+  final locationService = ref.watch(locationServiceProvider);
+  return locationService.isWithinActiveGeofence;
+});
+
+final geofenceDistancesProvider = Provider<Map<String, double>>((ref) {
+  final locationService = ref.watch(locationServiceProvider);
+  return locationService.geofenceDistances;
+});
+
+final geofenceDurationsProvider = Provider<Map<String, Duration>>((ref) {
+  final locationService = ref.watch(locationServiceProvider);
+  return locationService.geofenceDurations;
+});
+
+final currentGeofenceIdProvider = Provider<String?>((ref) {
+  final locationService = ref.watch(locationServiceProvider);
+  return locationService.currentGeofenceId;
+});
+
+// Tracking stats state that updates periodically
+class TrackingStats {
+  final double totalDistance;
+  final double totalGeofenceEarnings;
+  final dynamic currentGeofence;
+  final bool isWithinGeofence;
+  final Map<String, double> geofenceDistances;
+  final Map<String, Duration> geofenceDurations;
+  final String? currentGeofenceId;
+  final DateTime lastUpdated;
+
+  const TrackingStats({
+    required this.totalDistance,
+    required this.totalGeofenceEarnings,
+    required this.currentGeofence,
+    required this.isWithinGeofence,
+    required this.geofenceDistances,
+    required this.geofenceDurations,
+    required this.currentGeofenceId,
+    required this.lastUpdated,
+  });
+
+  TrackingStats copyWith({
+    double? totalDistance,
+    double? totalGeofenceEarnings,
+    dynamic currentGeofence,
+    bool? isWithinGeofence,
+    Map<String, double>? geofenceDistances,
+    Map<String, Duration>? geofenceDurations,
+    String? currentGeofenceId,
+    DateTime? lastUpdated,
+  }) {
+    return TrackingStats(
+      totalDistance: totalDistance ?? this.totalDistance,
+      totalGeofenceEarnings: totalGeofenceEarnings ?? this.totalGeofenceEarnings,
+      currentGeofence: currentGeofence ?? this.currentGeofence,
+      isWithinGeofence: isWithinGeofence ?? this.isWithinGeofence,
+      geofenceDistances: geofenceDistances ?? this.geofenceDistances,
+      geofenceDurations: geofenceDurations ?? this.geofenceDurations,
+      currentGeofenceId: currentGeofenceId ?? this.currentGeofenceId,
+      lastUpdated: lastUpdated ?? this.lastUpdated,
+    );
+  }
+}
+
+class TrackingStatsNotifier extends StateNotifier<TrackingStats> {
+  final LocationService _locationService;
+
+  TrackingStatsNotifier(this._locationService) : super(
+    TrackingStats(
+      totalDistance: 0.0,
+      totalGeofenceEarnings: 0.0,
+      currentGeofence: null,
+      isWithinGeofence: false,
+      geofenceDistances: {},
+      geofenceDurations: {},
+      currentGeofenceId: null,
+      lastUpdated: DateTime.now(),
+    ),
+  );
+
+  void updateStats() {
+    state = TrackingStats(
+      totalDistance: _locationService.totalDistance,
+      totalGeofenceEarnings: _locationService.totalGeofenceEarnings,
+      currentGeofence: _locationService.currentGeofence,
+      isWithinGeofence: _locationService.isWithinActiveGeofence,
+      geofenceDistances: Map.from(_locationService.geofenceDistances),
+      geofenceDurations: Map.from(_locationService.geofenceDurations),
+      currentGeofenceId: _locationService.currentGeofenceId,
+      lastUpdated: DateTime.now(),
+    );
+  }
+}
+
+final trackingStatsProvider = StateNotifierProvider<TrackingStatsNotifier, TrackingStats>((ref) {
+  final locationService = ref.watch(locationServiceProvider);
+  return TrackingStatsNotifier(locationService);
+});
+
+// Auto-refresh provider that triggers every few seconds when tracking is active
+final autoRefreshProvider = StreamProvider<int>((ref) {
+  final locationState = ref.watch(locationProvider);
+  
+  if (locationState.isTracking) {
+    // Create a stream that emits every 3 seconds when tracking is active
+    return Stream.periodic(const Duration(seconds: 3), (count) => count);
+  } else {
+    // When not tracking, emit once and complete
+    return Stream.value(0);
+  }
+});
+
+// Enhanced providers that auto-refresh when tracking is active
+final liveTrackingStatsProvider = Provider<TrackingStats>((ref) {
+  // Watch auto-refresh to trigger updates
+  ref.watch(autoRefreshProvider);
+  
+  final locationService = ref.watch(locationServiceProvider);
+  return TrackingStats(
+    totalDistance: locationService.totalDistance,
+    totalGeofenceEarnings: locationService.totalGeofenceEarnings,
+    currentGeofence: locationService.currentGeofence,
+    isWithinGeofence: locationService.isWithinActiveGeofence,
+    geofenceDistances: Map.from(locationService.geofenceDistances),
+    geofenceDurations: Map.from(locationService.geofenceDurations),
+    currentGeofenceId: locationService.currentGeofenceId,
+    lastUpdated: DateTime.now(),
+  );
 });

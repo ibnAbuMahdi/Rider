@@ -7,6 +7,7 @@ import '../utils/app_security.dart';
 
 import 'core/constants/app_constants.dart';
 import 'core/providers/auth_provider.dart';
+import 'core/providers/location_provider.dart';
 import 'core/routing/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/utils/connectivity_wrapper.dart';
@@ -38,16 +39,39 @@ class _StikaRiderAppState extends ConsumerState<StikaRiderApp> with WidgetsBindi
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     
+    // Notify location service about lifecycle changes
+    LocationService.instance.handleAppLifecycleChange(state);
+    
     switch (state) {
       case AppLifecycleState.detached:
         // App is being completely closed - cleanup background services
         _cleanupServices();
         break;
       case AppLifecycleState.paused:
-        // App went to background - reduce service activity
+        // App went to background - location tracking should continue
+        if (kDebugMode) {
+          print('🏠 APP: Going to background, location tracking should continue');
+        }
         break;
       case AppLifecycleState.resumed:
         // App came back to foreground - resume normal operation
+        if (kDebugMode) {
+          print('🏠 APP: Returned to foreground, verifying services');
+        }
+        
+        // Force refresh tracking stats when returning to foreground
+        if (mounted) {
+          try {
+            final container = ProviderScope.containerOf(context, listen: false);
+            if (container.exists(trackingStatsProvider)) {
+              container.read(trackingStatsProvider.notifier).forceRefresh();
+            }
+          } catch (e) {
+            if (kDebugMode) {
+              print('🚨 Error refreshing tracking stats on resume: $e');
+            }
+          }
+        }
         break;
       default:
         break;

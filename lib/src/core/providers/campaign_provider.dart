@@ -719,9 +719,83 @@ class CampaignNotifier extends StateNotifier<CampaignState> {
   }
 
 
+  /// Leave specific geofence by ID
+  Future<bool> leaveSpecificGeofence(String geofenceId) async {
+    if (kDebugMode) {
+      print('🎯 CAMPAIGN PROVIDER: leaveSpecificGeofence called with ID: $geofenceId');
+    }
+    
+    state = state.copyWith(isJoining: true, error: null);
+    
+    try {
+      final result = await _campaignService.leaveGeofence(geofenceId);
+      
+      if (kDebugMode) {
+        print('🎯 CAMPAIGN PROVIDER: leaveSpecificGeofence result.success = ${result.success}');
+        print('🎯 CAMPAIGN PROVIDER: leaveSpecificGeofence result.error = ${result.error}');
+      }
+      
+      if (result.success) {
+        // Update rider's current campaign (clear)
+        final rider = HiveService.getRider();
+        if (rider != null) {
+          final updatedRider = rider.copyWith(
+            currentCampaignId: null,
+          );
+          await HiveService.saveRider(updatedRider);
+        }
+        
+        // Clear current state and refresh campaigns list
+        state = state.copyWith(
+          currentCampaign: null,
+          currentGeofence: null,
+          myCampaigns: [], // Clear my campaigns since rider left all assignments
+          isJoining: false,
+        );
+        
+        // Force refresh of campaigns from API to get updated state
+        await loadMyCampaigns();
+        
+        if (kDebugMode) {
+          print('🎯 CAMPAIGN PROVIDER SUCCESS: Left geofence successfully');
+        }
+        
+        return true;
+      }
+      
+      state = state.copyWith(
+        isJoining: false,
+        error: result.error ?? 'Failed to leave geofence',
+      );
+      
+      if (kDebugMode) {
+        print('🎯 CAMPAIGN PROVIDER ERROR: Failed to leave geofence - ${result.error}');
+      }
+      
+      return false;
+    } catch (e) {
+      state = state.copyWith(
+        isJoining: false,
+        error: 'Failed to leave geofence: $e',
+      );
+      
+      if (kDebugMode) {
+        print('🎯 CAMPAIGN PROVIDER EXCEPTION: $e');
+      }
+      
+      return false;
+    }
+  }
+
   /// Leave current geofence
   Future<bool> leaveCurrentGeofence() async {
     final currentGeofence = state.currentGeofence;
+    if (kDebugMode) {
+      print('🎯 CAMPAIGN PROVIDER: leaveCurrentGeofence called');
+      print('🎯 CAMPAIGN PROVIDER: currentGeofence = ${currentGeofence?.name ?? 'null'}');
+      print('🎯 CAMPAIGN PROVIDER: currentCampaign = ${state.currentCampaign?.name ?? 'null'}');
+    }
+    
     if (currentGeofence == null) {
       if (kDebugMode) {
         print('🎯 CAMPAIGN PROVIDER: No current geofence to leave');
@@ -738,6 +812,11 @@ class CampaignNotifier extends StateNotifier<CampaignState> {
     try {
       final result = await _campaignService.leaveGeofence(currentGeofence.id);
       
+      if (kDebugMode) {
+        print('🎯 CAMPAIGN PROVIDER: leaveGeofence result.success = ${result.success}');
+        print('🎯 CAMPAIGN PROVIDER: leaveGeofence result.error = ${result.error}');
+      }
+      
       if (result.success) {
         // Update rider's current campaign (clear)
         final rider = HiveService.getRider();
@@ -748,12 +827,17 @@ class CampaignNotifier extends StateNotifier<CampaignState> {
           await HiveService.saveRider(updatedRider);
         }
         
-        // Clear current state
+        // Clear current state and refresh campaigns list
         state = state.copyWith(
           currentCampaign: null,
           currentGeofence: null,
+          myCampaigns: [], // Clear my campaigns since rider left all assignments
           isJoining: false,
         );
+        
+        // Force refresh of campaigns from API to get updated state
+        await loadMyCampaigns();
+        await loadAvailableCampaigns(forceRefresh: true);
         
         if (kDebugMode) {
           print('🎯 CAMPAIGN PROVIDER SUCCESS: Left geofence successfully');

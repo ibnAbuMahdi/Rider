@@ -848,9 +848,11 @@ class Geofence {
   factory Geofence.fromJson(Map<String, dynamic> json) => _$GeofenceFromJson(json);
   Map<String, dynamic> toJson() => _$GeofenceToJson(this);
 
-  bool containsPoint(double latitude, double longitude) {
+  bool containsPoint(double latitude, double longitude, {double accuracyBuffer = 0.0}) {
     if (shape == GeofenceShape.circle && radius != null) {
-      return _distanceInMeters(centerLatitude, centerLongitude, latitude, longitude) <= radius!;
+      final distance = _distanceInMeters(centerLatitude, centerLongitude, latitude, longitude);
+      final effectiveRadius = radius! + accuracyBuffer;
+      return distance <= effectiveRadius;
     } else if (shape == GeofenceShape.polygon && polygonPoints != null) {
       return _pointInPolygon(GeofencePoint(latitude, longitude), polygonPoints!);
     }

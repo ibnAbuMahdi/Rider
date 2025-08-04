@@ -92,21 +92,43 @@ class CurrentCampaignCard extends StatelessWidget {
                 ),
                 PopupMenuButton(
                   icon: const Icon(Icons.more_vert, size: 20),
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'leave',
-                      child: Row(
-                        children: [
-                          Icon(Icons.exit_to_app, color: AppColors.error, size: 16),
-                          SizedBox(width: 6),
-                          Text('Leave Geofence', style: TextStyle(fontSize: 14)),
-                        ],
+                  onOpened: () {
+                    print('🎯 DEBUG: PopupMenu opened');
+                  },
+                  itemBuilder: (context) {
+                    print('🎯 DEBUG: PopupMenu itemBuilder called');
+                    return [
+                      PopupMenuItem(
+                        value: 'leave',
+                        onTap: () {
+                          print('🎯 DEBUG: PopupMenuItem onTap called');
+                          // Use delayed execution to avoid conflict with onSelected
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (onLeaveGeofence != null) {
+                              print('🎯 DEBUG: Calling onLeaveGeofence from onTap');
+                              onLeaveGeofence!();
+                            } else {
+                              print('🎯 DEBUG: onLeaveGeofence is null in onTap');
+                            }
+                          });
+                        },
+                        child: const Row(
+                          children: [
+                            Icon(Icons.exit_to_app, color: AppColors.error, size: 16),
+                            SizedBox(width: 6),
+                            Text('Leave Geofence', style: TextStyle(fontSize: 14)),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ];
+                  },
                   onSelected: (value) {
-                    if (value == 'leave' && onLeaveGeofence != null) {
-                      onLeaveGeofence!();
+                    print('🎯 DEBUG: PopupMenu selected: $value');
+                    if (value == 'leave') {
+                      print('🎯 DEBUG: Leave geofence selected, onLeaveGeofence = ${onLeaveGeofence != null ? 'available' : 'null'}');
+                      if (onLeaveGeofence != null) {
+                        onLeaveGeofence!();
+                      }
                     }
                   },
                 ),

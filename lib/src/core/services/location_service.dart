@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../constants/app_constants.dart';
@@ -19,6 +20,7 @@ class LocationService {
   Position? _lastPosition;
   Timer? _stationaryTimer;
   Timer? _geofenceCheckTimer;
+  Timer? _periodicLocationTimer;
   bool _isTracking = false;
   String? _activeCampaignId;
   bool _isGettingPosition = false;
@@ -27,12 +29,56 @@ class LocationService {
   bool _isOnline = false;
   final Connectivity _connectivity = Connectivity();
   
+  // Debug flag to suspend geofence checking for earnings AND tracking (testing only)
+  bool _suspendGeofenceChecking = false; // Set to false to restore normal geofence-based tracking and earnings
+  
   // Callback to update the location provider when new position is received
   Function(Position)? _positionUpdateCallback;
   
   // Set the callback to update location provider state
   void setPositionUpdateCallback(Function(Position) callback) {
     _positionUpdateCallback = callback;
+  }
+
+  // Handle app lifecycle changes to ensure tracking continues in background
+  void handleAppLifecycleChange(AppLifecycleState state) {
+    if (kDebugMode) {
+      print('📍 LOCATION SERVICE: App lifecycle changed to $state, tracking: $_isTracking');
+    }
+
+    switch (state) {
+      case AppLifecycleState.paused:
+        // App went to background - ensure location tracking continues
+        if (_isTracking) {
+          if (kDebugMode) {
+            print('📍 LOCATION SERVICE: App backgrounded, ensuring location tracking continues');
+          }
+          // The location stream should continue running, but we might want to adjust the settings
+          // for better battery optimization while maintaining accuracy
+        }
+        break;
+      case AppLifecycleState.resumed:
+        // App came back to foreground - ensure location tracking is still active
+        if (_isTracking) {
+          if (kDebugMode) {
+            print('📍 LOCATION SERVICE: App resumed, verifying location tracking status');
+          }
+          // Check if the position stream is still active and restart if needed
+          _verifyLocationStreamStatus();
+        }
+        break;
+      default:
+        break;
+    }
+  }
+
+  Future<void> _verifyLocationStreamStatus() async {
+    if (_isTracking && _positionStream == null) {
+      if (kDebugMode) {
+        print('📍 LOCATION SERVICE: Position stream was lost, restarting...');
+      }
+      await _restartLocationStream();
+    }
   }
   
   // Enhanced location tracking variables
@@ -375,11 +421,11 @@ class LocationService {
       _geofenceEntryTimes.clear();
       _geofenceDurations.clear();
 
-      // Enhanced location settings based on reference implementation
+      // Enhanced location settings optimized for background tracking  
       const locationSettings = LocationSettings(
-        accuracy: LocationAccuracy.bestForNavigation, // Better accuracy
-        distanceFilter: 0, // Track every 10 meters (more granular)
-        timeLimit: Duration(seconds: 10), // Timeout for each location request
+        accuracy: LocationAccuracy.medium, // Further reduced accuracy requirement
+        distanceFilter: 10, // Only update when moved 10m (less frequent updates)
+        timeLimit: Duration(seconds: 60), // Much longer timeout
       );
 
       if (kDebugMode) {
@@ -394,10 +440,14 @@ class LocationService {
           if (kDebugMode) {
             print('❌ Location stream error: $error');
           }
-          // Try to restart the stream after a delay
-          Timer(const Duration(seconds: 5), () {
+          // Try to restart the stream after a delay with exponential backoff
+          final retryDelay = Duration(seconds: 10); // Longer initial delay
+          Timer(retryDelay, () {
             if (_isTracking) {
-              _restartLocationStream();
+              if (kDebugMode) {
+                print('📍 Stream failed, switching to periodic position requests...');
+              }
+              _startPeriodicLocationUpdates(); // Fallback to periodic requests
             }
           });
         },
@@ -478,6 +528,8 @@ class LocationService {
       _stationaryTimer = null;
       _geofenceCheckTimer?.cancel();
       _geofenceCheckTimer = null;
+      _periodicLocationTimer?.cancel();
+      _periodicLocationTimer = null;
       
       _isTracking = false;
       _activeCampaignId = null;
@@ -536,68 +588,95 @@ class LocationService {
       // Update location provider state if callback is set
       _positionUpdateCallback?.call(position);
 
-      // Calculate distance if we have a previous position
+      // Check if we should track this position update
+      bool shouldTrack = _shouldTrackPosition(position);
+      
+      // Calculate distance if we have a previous position AND should track
       double distanceFromLast = 0.0;
       bool isMoving = false;
       
-      if (_lastPosition != null) {
+      if (_lastPosition != null && shouldTrack) {
         distanceFromLast = Geolocator.distanceBetween(
           _lastPosition!.latitude,
           _lastPosition!.longitude,
           position.latitude,
           position.longitude,
         );
-        
-        // Add to total distance traveled
+        if (kDebugMode) {
+        print('📍 Distance from last: ${distanceFromLast}');
+        }
+        // Add to total distance traveled (only when tracking)
         _totalDistance += distanceFromLast;
         
-        // Add distance to current geofence if rider is inside one
-        if (_currentGeofenceId != null) {
-          _geofenceDistances[_currentGeofenceId!] = 
-              (_geofenceDistances[_currentGeofenceId!] ?? 0.0) + distanceFromLast;
+        // Add distance to current geofence if rider is inside one OR if debugging
+        if (_currentGeofenceId != null || _suspendGeofenceChecking) {
+          final geofenceId = _currentGeofenceId ?? _getDebugGeofenceId();
           
-          // Update earnings for current geofence
-          _updateGeofenceEarnings(_currentGeofenceId!, distanceFromLast);
-        }
-        
-        isMoving = distanceFromLast > AppConstants.movementThresholdMeters;
-        
-        if (kDebugMode) {
-          print('📍 Distance from last: ${distanceFromLast.toStringAsFixed(2)}m');
-          print('📍 Total distance: ${_totalDistance.toStringAsFixed(2)}m');
-          print('📍 Movement status: ${isMoving ? 'moving' : 'stationary'}');
-        }
-        
-        if (isMoving) {
-          _onMovement();
-        } else {
-          _onStationary();
+          if (geofenceId != null) {
+            _geofenceDistances[geofenceId] = 
+                (_geofenceDistances[geofenceId] ?? 0.0) + distanceFromLast;
+            
+            // Update earnings for current geofence
+            _updateGeofenceEarnings(geofenceId, distanceFromLast);
+            
+            if (kDebugMode && _suspendGeofenceChecking && _currentGeofenceId == null) {
+              print('🐛 DEBUG MODE: Earning without geofence check (using ${_findGeofenceById(geofenceId)?.name ?? geofenceId})');
+            }
+          }
         }
       }
+      
+      // Calculate movement status
+      isMoving = distanceFromLast > AppConstants.movementThresholdMeters;
+      
+      if (kDebugMode) {
+        print('📍 Should track: $shouldTrack');
+        print('📍 Distance from last: ${distanceFromLast.toStringAsFixed(2)}m');
+        print('📍 Current geofence: ${_currentGeofenceId != null ? _currentGeofence?.name ?? 'unknown' : 'NONE'}');
+        print('📍 Total distance: ${(_totalDistance / 1000.0).toStringAsFixed(3)}km');
+        print('📍 Total earnings: ₦${totalGeofenceEarnings.toStringAsFixed(2)}');
+        print('📍 Movement status: ${isMoving ? 'moving' : 'stationary'}');
+        if (!shouldTrack) {
+          print('🚫 TRACKING PAUSED: ${_getTrackingPauseReason()}');
+        }
+      }
+      
+      if (isMoving) {
+        _onMovement();
+      } else {
+        _onStationary();
+      }
 
-      // Create location record with enhanced data
-      final locationRecord = LocationRecord(
-        id: '${DateTime.now().millisecondsSinceEpoch}',
-        riderId: HiveService.getUserId() ?? '',
-        campaignId: campaignId,
-        latitude: position.latitude,
-        longitude: position.longitude,
-        accuracy: position.accuracy,
-        speed: position.speed,
-        heading: position.heading,
-        altitude: position.altitude,
-        timestamp: DateTime.now(),
-        isWorking: campaignId != null,
-        createdAt: DateTime.now(),
-      );
+      // Only create and store location records when actively tracking
+      if (shouldTrack) {
+        final locationRecord = LocationRecord(
+          id: '${DateTime.now().millisecondsSinceEpoch}',
+          riderId: HiveService.getUserId() ?? '',
+          campaignId: campaignId,
+          latitude: position.latitude,
+          longitude: position.longitude,
+          accuracy: position.accuracy,
+          speed: position.speed,
+          heading: position.heading,
+          altitude: position.altitude,
+          timestamp: DateTime.now(),
+          isWorking: campaignId != null,
+          createdAt: DateTime.now(),
+        );
 
-      // Store location record (with offline capability)
-      await _storeLocationRecord(locationRecord);
+        // Store location record (with offline capability)
+        await _storeLocationRecord(locationRecord);
+        
+        if (kDebugMode) {
+          print('📍 Location record stored successfully');
+        }
+      } else if (kDebugMode) {
+        print('⏸️ Location record NOT stored - tracking paused');
+      }
       
       _lastPosition = position;
       
       if (kDebugMode) {
-        print('📍 Location record stored successfully');
         print('📍 Online status: ${_isOnline ? 'online' : 'offline'}');
       }
     } catch (e) {
@@ -696,6 +775,29 @@ class LocationService {
   
   List<LocationRecord> get unsyncedLocations => List.unmodifiable(_unsyncedLocations);
 
+  // Get unsynced location records
+  Future<List<LocationRecord>> getUnsyncedLocations() async {
+    return List.from(_unsyncedLocations);
+  }
+
+  // Mark locations as synced
+  Future<void> markLocationsSynced(List<String> locationIds) async {
+    _unsyncedLocations.removeWhere((record) => locationIds.contains(record.id));
+  }
+
+
+  // Find geofence by ID
+  Geofence? _findGeofenceById(String geofenceId) {
+    if (_activeCampaign != null) {
+      for (final geofence in _activeCampaign!.geofences) {
+        if (geofence.id == geofenceId) {
+          return geofence;
+        }
+      }
+    }
+    return null;
+  }
+
   // Calculate distance between two points
   static double calculateDistance(
     double lat1, double lon1,
@@ -720,14 +822,32 @@ class LocationService {
     return distance <= radiusMeters;
   }
 
-  // Get location records for sync
-  Future<List<LocationRecord>> getUnsyncedLocations() async {
-    return HiveService.getUnsyncedLocations();
-  }
 
-  // Mark locations as synced
-  Future<void> markLocationsSynced(List<String> locationIds) async {
-    await HiveService.markLocationsSynced(locationIds);
+  // Fallback: Use periodic getCurrentPosition instead of stream
+  void _startPeriodicLocationUpdates() {
+    _periodicLocationTimer?.cancel();
+    
+    if (kDebugMode) {
+      print('📍 Starting periodic location updates (every 30 seconds)...');
+    }
+    
+    _periodicLocationTimer = Timer.periodic(Duration(seconds: 30), (timer) async {
+      if (!_isTracking) {
+        timer.cancel();
+        return;
+      }
+      
+      try {
+        final position = await getCurrentPosition();
+        if (position != null) {
+          _onLocationUpdate(position, _activeCampaignId);
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('📍 Periodic location update failed: $e');
+        }
+      }
+    });
   }
 
   // Start geofence monitoring
@@ -760,25 +880,59 @@ class LocationService {
         // Only check active assignments
         if (assignment.status != GeofenceAssignmentStatus.active) continue;
         
-        // Find the geofence in the campaign
-        final geofence = _findGeofenceById(assignment.geofenceId);
-        if (geofence == null) continue;
+        // Use assignment data directly instead of searching in empty campaign.geofences
+        if (kDebugMode) {
+          print('🔍 GEOFENCE CHECK: Checking ${assignment.geofenceName}');
+          print('🔍   Center: ${assignment.centerLatitude}, ${assignment.centerLongitude}');
+          print('🔍   Radius: ${assignment.radiusMeters ?? assignment.radius}m');
+          print('🔍   Current position: ${_lastPosition!.latitude}, ${_lastPosition!.longitude}');
+          
+          // Calculate distance manually to verify
+          final distance = Geolocator.distanceBetween(
+            _lastPosition!.latitude, 
+            _lastPosition!.longitude,
+            assignment.centerLatitude, 
+            assignment.centerLongitude
+          );
+          print('🔍   Distance to center: ${distance.toStringAsFixed(2)}m');
+        }
         
-        final isInside = geofence.containsPoint(
-          _lastPosition!.latitude,
+        // Calculate if inside using assignment boundary data
+        final distance = Geolocator.distanceBetween(
+          _lastPosition!.latitude, 
           _lastPosition!.longitude,
+          assignment.centerLatitude, 
+          assignment.centerLongitude
         );
+        final radius = (assignment.radiusMeters ?? assignment.radius ?? 0).toDouble();
+        final effectiveRadius = radius + _lastPosition!.accuracy;
+        final isInside = distance <= effectiveRadius;
+        
+        if (kDebugMode) {
+          print('🔍   Effective radius (radius + accuracy): ${effectiveRadius.toStringAsFixed(2)}m');
+          print('🔍   Is inside: $isInside');
+        }
         
         if (isInside) {
           isInsideAnyGeofence = true;
           
-          // Prioritize by assignment priority (active assignments have priority)
-          if (activeGeofence == null || 
-              (geofence.isHighPriority && !activeGeofence.isHighPriority) ||
-              (geofence.isHighPriority == activeGeofence.isHighPriority && 
-               (geofence.priority ?? 0) < (activeGeofence.priority ?? 0))) {
-            activeGeofence = geofence;
-            activeGeofenceId = geofence.id;
+          // Use the first active geofence found (simplified logic since we're using assignments)
+          if (activeGeofenceId == null) {
+            activeGeofenceId = assignment.geofenceId;
+            // Create a simple geofence object from assignment data for compatibility
+            activeGeofence = Geofence(
+              id: assignment.geofenceId,
+              name: assignment.geofenceName,
+              centerLatitude: assignment.centerLatitude,
+              centerLongitude: assignment.centerLongitude,
+              radius: (assignment.radiusMeters ?? assignment.radius ?? 0).toDouble(),
+              startDate: assignment.startedAt ?? DateTime.now(),
+              endDate: assignment.endedAt ?? DateTime.now().add(const Duration(days: 365)),
+	      ratePerKm: assignment.ratePerKm,
+	      rateType: 'per_km',
+	      ratePerHour: assignment.ratePerHour,
+	      fixedDailyRate: assignment.fixedDailyRate,
+            );
           }
         }
       }
@@ -790,6 +944,7 @@ class LocationService {
         final isInside = geofence.containsPoint(
           _lastPosition!.latitude,
           _lastPosition!.longitude,
+          accuracyBuffer: _lastPosition!.accuracy, // Add GPS accuracy as buffer
         );
         
         if (isInside) {
@@ -927,29 +1082,49 @@ class LocationService {
     }
   }
 
-  // Helper method to find geofence by ID in current campaign or assignments
-  Geofence? _findGeofenceById(String geofenceId) {
-    // First check in active campaign
-    if (_activeCampaign != null) {
-      final geofence = _activeCampaign!.geofences
-          .where((g) => g.id == geofenceId)
-          .firstOrNull;
-      if (geofence != null) return geofence;
-    }
-    
-    // Could add additional fallback logic here if needed
-    return null;
-  }
 
   // Get active campaign info
   String? get activeCampaignId => _activeCampaignId;
   Campaign? get activeCampaign => _activeCampaign;
   List<GeofenceAssignment> get geofenceAssignments => List.unmodifiable(_geofenceAssignments);
 
-  // Check if currently within geofence
+  // Check if currently within geofence - real-time check
   bool get isWithinActiveGeofence {
-    if (_lastPosition == null || _activeCampaign == null) return false;
-    return _wasInsideGeofence;
+    if (_lastPosition == null) return false;
+    
+    // Check assigned geofences first (priority)
+    if (_geofenceAssignments.isNotEmpty) {
+      for (final assignment in _geofenceAssignments) {
+        if (assignment.status != GeofenceAssignmentStatus.active) continue;
+        
+        // Use assignment boundary data directly instead of searching in empty campaign.geofences
+        final distance = Geolocator.distanceBetween(
+          _lastPosition!.latitude,
+          _lastPosition!.longitude,
+          assignment.centerLatitude,
+          assignment.centerLongitude,
+        );
+        
+        final radius = (assignment.radiusMeters ?? assignment.radius ?? 0).toDouble();
+        final effectiveRadius = radius + _lastPosition!.accuracy;
+        final isInside = distance <= effectiveRadius;
+        
+        if (isInside) {
+          return true;
+        }
+      }
+    }
+    
+    // Fallback to campaign geofences
+    if (_activeCampaign != null) {
+      for (final geofence in _activeCampaign!.geofences) {
+        if (geofence.containsPoint(_lastPosition!.latitude, _lastPosition!.longitude)) {
+          return true;
+        }
+      }
+    }
+    
+    return false;
   }
   
   // Get current geofence information
@@ -1046,20 +1221,157 @@ class LocationService {
     return distances;
   }
   
+  // Helper method to get a geofence ID for debug mode earnings
+  String? _getDebugGeofenceId() {
+    // Use first active geofence assignment
+    if (_geofenceAssignments.isNotEmpty) {
+      final activeAssignment = _geofenceAssignments
+          .where((a) => a.status == GeofenceAssignmentStatus.active)
+          .firstOrNull;
+      if (activeAssignment != null) {
+        return activeAssignment.geofenceId;
+      }
+    }
+    
+    // Fallback to first campaign geofence
+    if (_activeCampaign != null && _activeCampaign!.geofences.isNotEmpty) {
+      return _activeCampaign!.geofences.first.id;
+    }
+    
+    return null;
+  }
+  
+  // Debug method to toggle geofence checking suspension
+  void setDebugMode(bool suspend) {
+    _suspendGeofenceChecking = suspend;
+    if (kDebugMode) {
+      print('🐛 DEBUG MODE: Geofence restrictions ${suspend ? 'SUSPENDED' : 'RESTORED'}');
+      print('🐛 Tracking and earnings will now occur ${suspend ? 'everywhere' : 'only inside active geofence assignments'}');
+    }
+  }
+  
+  bool get isDebugModeActive => _suspendGeofenceChecking;
+  
+  // Get current tracking eligibility status
+  bool get isCurrentlyTracking {
+    if (!_isTracking) return false;
+    if (_lastPosition == null) return false;
+    return _shouldTrackPosition(_lastPosition!);
+  }
+  
+  // Check if we should track the current position (only when in geofence with assignment)
+  bool _shouldTrackPosition(Position position) {
+    // Always track in debug mode
+    if (_suspendGeofenceChecking) return true;
+    
+    // Must have geofence assignments to track
+    if (_geofenceAssignments.isEmpty) return false;
+    
+    // Check if position is within any active geofence assignment
+    for (final assignment in _geofenceAssignments) {
+      if (assignment.status != GeofenceAssignmentStatus.active) continue;
+      
+      // Use assignment boundary data directly instead of searching in empty campaign.geofences
+      final distance = Geolocator.distanceBetween(
+        position.latitude,
+        position.longitude,
+        assignment.centerLatitude,
+        assignment.centerLongitude,
+      );
+      
+      final radius = (assignment.radiusMeters ?? assignment.radius ?? 0).toDouble();
+      final effectiveRadius = radius + position.accuracy;
+      final isInside = distance <= effectiveRadius;
+      
+      if (isInside) {
+        return true; // Inside an active geofence assignment
+      }
+    }
+    
+    return false; // Not inside any active geofence assignment
+  }
+  
+  // Get reason why tracking is paused (for debugging)
+  String _getTrackingPauseReason() {
+    if (_geofenceAssignments.isEmpty) {
+      return 'No geofence assignments';
+    }
+    
+    final activeAssignments = _geofenceAssignments
+        .where((a) => a.status == GeofenceAssignmentStatus.active)
+        .toList();
+    
+    if (activeAssignments.isEmpty) {
+      return 'No active geofence assignments (${_geofenceAssignments.length} total)';
+    }
+    
+    // Enhanced debugging for the "1 active assignment but no geofence" issue
+    if (kDebugMode && _lastPosition != null) {
+      print('🔍 DETAILED TRACKING PAUSE ANALYSIS:');
+      print('🔍 Active assignments: ${activeAssignments.length}');
+      
+      for (int i = 0; i < activeAssignments.length; i++) {
+        final assignment = activeAssignments[i];
+        print('🔍 [$i] Assignment: ${assignment.geofenceName} (ID: ${assignment.geofenceId})');
+        
+        // Use assignment boundary data directly instead of searching in empty campaign.geofences
+        final distance = Geolocator.distanceBetween(
+          _lastPosition!.latitude, 
+          _lastPosition!.longitude,
+          assignment.centerLatitude, 
+          assignment.centerLongitude
+        );
+        final radius = (assignment.radiusMeters ?? assignment.radius ?? 0).toDouble();
+        final effectiveRadius = radius + _lastPosition!.accuracy;
+        final shouldBeInside = distance <= effectiveRadius;
+        
+        print('🔍 [$i] Geofence: ${assignment.geofenceName}');
+        print('🔍 [$i] Distance: ${distance.toStringAsFixed(2)}m');
+        print('🔍 [$i] Radius: ${radius}m');
+        print('🔍 [$i] GPS accuracy: ${_lastPosition!.accuracy.toStringAsFixed(2)}m');
+        print('🔍 [$i] Effective radius: ${effectiveRadius.toStringAsFixed(2)}m');
+        print('🔍 [$i] Should be inside: $shouldBeInside');
+        
+        if (!shouldBeInside) {
+          final distanceOutside = distance - radius;
+          print('🔍 [$i] Distance outside geofence: ${distanceOutside.toStringAsFixed(2)}m');
+        }
+      }
+    }
+    
+    return 'Outside all active geofences (${activeAssignments.length} active assignments)';
+  }
+  
   // Update earnings for a specific geofence based on distance
   void _updateGeofenceEarnings(String geofenceId, double distanceMeters) {
-    if (_currentGeofence == null) return;
+    // In debug mode, find geofence if _currentGeofence is null
+    Geofence? geofence = _currentGeofence;
+    if (geofence == null && _suspendGeofenceChecking) {
+      geofence = _findGeofenceById(geofenceId);
+    }
+    
+    if (geofence == null) return;
     
     final distanceKm = distanceMeters / 1000.0;
     double additionalEarnings = 0.0;
     
-    switch (_currentGeofence!.rateType) {
+    if (kDebugMode) {
+      print('💰 EARNINGS UPDATE: Geofence ${geofence.name}');
+      print('💰   Rate Type: ${geofence.rateType}');
+      print('💰   Rate Per Km: ${geofence.ratePerKm}');
+      print('💰   Distance: ${distanceKm.toStringAsFixed(4)} km (${distanceMeters.toStringAsFixed(2)}m)');
+      if (_suspendGeofenceChecking && _currentGeofence == null) {
+        print('🐛 DEBUG MODE: Calculating earnings without geofence boundary check');
+      }
+    }
+    
+    switch (geofence.rateType) {
       case 'per_km':
-        additionalEarnings = (_currentGeofence!.ratePerKm ?? 0.0) * distanceKm;
+        additionalEarnings = (geofence.ratePerKm ?? 0.0) * distanceKm;
         break;
       case 'hybrid':
         // For hybrid, we add distance-based earnings here, time-based on exit
-        additionalEarnings = (_currentGeofence!.ratePerKm ?? 0.0) * distanceKm;
+        additionalEarnings = (geofence.ratePerKm ?? 0.0) * distanceKm;
         break;
       case 'per_hour':
       case 'fixed_daily':
@@ -1071,9 +1383,10 @@ class LocationService {
     _geofenceEarnings[geofenceId] = 
         (_geofenceEarnings[geofenceId] ?? 0.0) + additionalEarnings;
     
-    if (kDebugMode && additionalEarnings > 0) {
-      print('💰 Added ₦${additionalEarnings.toStringAsFixed(2)} to geofence ${_currentGeofence!.name}');
-      print('💰 Total earnings from this geofence: ₦${_geofenceEarnings[geofenceId]!.toStringAsFixed(2)}');
+    if (kDebugMode) {
+      print('💰   Additional Earnings: ₦${additionalEarnings.toStringAsFixed(4)}');
+      print('💰   Total Geofence Earnings: ₦${_geofenceEarnings[geofenceId]!.toStringAsFixed(4)}');
+      print('💰   Total All Geofences: ₦${totalGeofenceEarnings.toStringAsFixed(4)}');
     }
   }
   

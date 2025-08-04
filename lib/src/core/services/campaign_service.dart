@@ -1,3 +1,4 @@
+import 'dart:math';
 import '../models/campaign.dart';
 import 'api_service.dart';
 import 'location_service.dart';
@@ -823,14 +824,37 @@ class CampaignService {
     }
   }
 
-  /// Truncates accuracy to 8 digits maximum for consistency with server validation
+  /// Formats accuracy to 8 digits total with 2 decimal places for consistency with server validation
   static double _truncateAccuracy(double accuracy) {
-    final accuracyString = accuracy.toString();
-    if (accuracyString.length <= 8) {
-      return accuracy;
+    String accString = accuracy.toStringAsFixed(2); // Start with 2 decimal places
+    
+    if (accString.replaceAll('.', '').length > 8) {
+      // If total digits exceed 8, truncate
+      // Find how many digits we need to keep before the decimal point
+      int decimalIndex = accString.indexOf('.');
+      int integerPartLength = decimalIndex == -1 ? accString.length : decimalIndex;
+      int digitsToKeep = 8;
+      
+      if (decimalIndex != -1) { // If there's a decimal point, it counts as one of the 8 digits
+        digitsToKeep--; // For the decimal point itself
+        if (integerPartLength >= digitsToKeep) {
+          // Integer part is too long, truncate to fit
+          accString = accString.substring(0, digitsToKeep) + '.00';
+        } else {
+          // Keep integer part and limit decimal places
+          int maxDecimalPlaces = digitsToKeep - integerPartLength;
+          String integerPart = accString.substring(0, decimalIndex);
+          String decimalPart = accString.substring(decimalIndex + 1);
+          if (decimalPart.length > maxDecimalPlaces) {
+            decimalPart = decimalPart.substring(0, maxDecimalPlaces);
+          }
+          accString = '$integerPart.$decimalPart';
+        }
+      } else {
+        accString = accString.substring(0, min(accString.length, 8));
+      }
     }
     
-    final truncated = accuracyString.substring(0, 8);
-    return double.tryParse(truncated) ?? accuracy;
+    return double.parse(accString);
   }
 }

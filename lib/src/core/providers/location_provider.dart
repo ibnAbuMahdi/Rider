@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import '../services/location_service.dart';
@@ -340,6 +343,12 @@ final currentGeofenceIdProvider = Provider<String?>((ref) {
   return locationService.currentGeofenceId;
 });
 
+// Provider to check if actively tracking (inside geofence with assignment)
+final isCurrentlyTrackingProvider = Provider<bool>((ref) {
+  final locationService = ref.watch(locationServiceProvider);
+  return locationService.isCurrentlyTracking;
+});
+
 // Tracking stats state that updates periodically
 class TrackingStats {
   final double totalDistance;
@@ -413,6 +422,14 @@ class TrackingStatsNotifier extends StateNotifier<TrackingStats> {
       lastUpdated: DateTime.now(),
     );
   }
+
+  // Force immediate refresh when returning from background
+  void forceRefresh() {
+    if (kDebugMode) {
+      print('📊 TRACKING STATS: Force refreshing stats after background return');
+    }
+    updateStats();
+  }
 }
 
 final trackingStatsProvider = StateNotifierProvider<TrackingStatsNotifier, TrackingStats>((ref) {
@@ -420,13 +437,62 @@ final trackingStatsProvider = StateNotifierProvider<TrackingStatsNotifier, Track
   return TrackingStatsNotifier(locationService);
 });
 
-// Auto-refresh provider that triggers every few seconds when tracking is active
+// App lifecycle provider to track when app is in foreground/background
+class AppLifecycleNotifier extends StateNotifier<AppLifecycleState> {
+  AppLifecycleNotifier() : super(AppLifecycleState.resumed) {
+    // Listen to app lifecycle changes
+    SystemChannels.lifecycle.setMessageHandler((message) async {
+      if (message != null) {
+        final lifecycleState = _parseLifecycleMessage(message);
+        if (lifecycleState != null) {
+          state = lifecycleState;
+          if (kDebugMode) {
+            print('📱 APP LIFECYCLE: State changed to $lifecycleState');
+          }
+        }
+      }
+      return null;
+    });
+  }
+
+  AppLifecycleState? _parseLifecycleMessage(String message) {
+    switch (message) {
+      case 'AppLifecycleState.resumed':
+        return AppLifecycleState.resumed;
+      case 'AppLifecycleState.inactive':
+        return AppLifecycleState.inactive;
+      case 'AppLifecycleState.paused':
+        return AppLifecycleState.paused;
+      case 'AppLifecycleState.detached':
+        return AppLifecycleState.detached;
+      default:
+        return null;
+    }
+  }
+}
+
+final appLifecycleProvider = StateNotifierProvider<AppLifecycleNotifier, AppLifecycleState>((ref) {
+  return AppLifecycleNotifier();
+});
+
+// Enhanced auto-refresh provider that handles background/foreground transitions
 final autoRefreshProvider = StreamProvider<int>((ref) {
   final locationState = ref.watch(locationProvider);
+  final appLifecycle = ref.watch(appLifecycleProvider);
   
   if (locationState.isTracking) {
-    // Create a stream that emits every 3 seconds when tracking is active
-    return Stream.periodic(const Duration(seconds: 3), (count) => count);
+    // When app is in foreground, refresh every 3 seconds
+    if (appLifecycle == AppLifecycleState.resumed) {
+      return Stream.periodic(const Duration(seconds: 3), (count) => count);
+    } 
+    // When app is in background but tracking is active, refresh every 10 seconds (slower to save battery)
+    else if (appLifecycle == AppLifecycleState.paused) {
+      return Stream.periodic(const Duration(seconds: 10), (count) => count);
+    }
+    // For other states, emit once every 30 seconds
+    else {
+      return Stream.periodic(const Duration(seconds: 30), (count) => count);
+    }
   } else {
     // When not tracking, emit once and complete
     return Stream.value(0);
@@ -438,7 +504,15 @@ final liveTrackingStatsProvider = Provider<TrackingStats>((ref) {
   // Watch auto-refresh to trigger updates
   ref.watch(autoRefreshProvider);
   
+  // Also watch app lifecycle to force refresh when returning to foreground
+  final appLifecycle = ref.watch(appLifecycleProvider);
+  
   final locationService = ref.watch(locationServiceProvider);
+  
+  if (kDebugMode && appLifecycle == AppLifecycleState.resumed) {
+    print('📊 TRACKING STATS: Refreshing stats on app resume');
+  }
+  
   return TrackingStats(
     totalDistance: locationService.totalDistance,
     totalGeofenceEarnings: locationService.totalGeofenceEarnings,

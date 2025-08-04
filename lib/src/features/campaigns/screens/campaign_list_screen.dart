@@ -64,8 +64,8 @@ class _CampaignListScreenState extends ConsumerState<CampaignListScreen>
         },
         child: Column(
           children: [
-            // Current campaign section
-            if (currentCampaign != null) ...[
+            // Current campaign section - only show if campaign has active geofences
+            if (currentCampaign != null && currentCampaign.hasActiveGeofenceAssignments) ...[
               CurrentCampaignCard(
                 campaign: currentCampaign,
                 onLeaveGeofence: _showLeaveGeofenceDialog,
@@ -276,15 +276,240 @@ class _CampaignListScreenState extends ConsumerState<CampaignListScreen>
   void _showLeaveGeofenceDialog() {
     final currentCampaign = ref.read(campaignProvider).currentCampaign;
     final currentGeofence = ref.read(campaignProvider).currentGeofence;
-    if (currentCampaign == null || currentGeofence == null) return;
     
+    print('🎯 DEBUG: _showLeaveGeofenceDialog called');
+    print('🎯 DEBUG: currentCampaign = ${currentCampaign?.name ?? 'null'}');
+    print('🎯 DEBUG: currentGeofence = ${currentGeofence?.name ?? 'null'}');
+    
+    if (currentCampaign == null) {
+      print('🎯 DEBUG: Dialog blocked - no currentCampaign');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No active campaign found. Please refresh.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+    
+    if (currentGeofence == null) {
+      print('🎯 DEBUG: No currentGeofence found');
+      print('🎯 DEBUG: currentCampaign activeGeofences: ${currentCampaign.activeGeofences.map((g) => g.geofenceName).toList()}');
+      
+      // Try to get the first active geofence from the campaign if currentGeofence is null
+      if (currentCampaign.activeGeofences.isNotEmpty) {
+        print('🎯 DEBUG: Using first active geofence from campaign');
+        final firstActiveGeofenceAssignment = currentCampaign.activeGeofences.first;
+        _showGeofenceLeaveDialogByAssignment(currentCampaign, firstActiveGeofenceAssignment);
+        return;
+      }
+      
+      print('🎯 DEBUG: No active geofences found - showing generic campaign leave dialog');
+      // Fallback: Show campaign leave dialog instead of geofence-specific dialog
+      //_showLeaveCampaignDialog(currentCampaign);
+      return;
+    }
+    
+    _showGeofenceLeaveDialog(currentCampaign, currentGeofence);
+  }
+
+  void _showGeofenceLeaveDialogByAssignment(Campaign campaign, GeofenceAssignment geofenceAssignment) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Leave Geofence'),
         content: Text(
-          'Are you sure you want to leave "${currentGeofence.name ?? 'this geofence'}" in "${currentCampaign.name ?? 'this campaign'}"?\n\n'
+          'Are you sure you want to leave "${geofenceAssignment.geofenceName}" in "${campaign.name ?? 'this campaign'}"?\n\n'
           'You will stop earning from this geofence area and may need to reapply to join again.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          Consumer(
+            builder: (context, ref, child) {
+              final isJoining = ref.watch(campaignProvider).isJoining;
+              print('🎯 UI DEBUG: Button builder - isJoining = $isJoining');
+              return ElevatedButton(
+                onPressed: isJoining ? null : () async {
+                  try {
+                    print('🎯 UI DEBUG: Leave button pressed');
+                    // Use the geofence ID from the assignment
+                    final campaignNotifier = ref.read(campaignProvider.notifier);
+                    print('🎯 UI DEBUG: About to call leaveSpecificGeofence');
+                    final success = await campaignNotifier.leaveSpecificGeofence(geofenceAssignment.geofenceId);
+                    print('🎯 UI DEBUG: leaveSpecificGeofence call completed');
+                    
+                    print('🎯 UI DEBUG: leaveSpecificGeofence returned success = $success');
+                    print('🎯 UI DEBUG: mounted = $mounted');
+                    
+                    if (success && mounted) {
+                      print('🎯 UI DEBUG: Closing dialog and showing success snackbar');
+                      Navigator.of(context).pop();
+                      
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Successfully left geofence'),
+                          backgroundColor: AppColors.success,
+                        ),
+                      );
+                      
+                      // Force UI rebuild by calling setState if needed
+                      if (mounted) {
+                        setState(() {});
+                      }
+                    } else {
+                      print('🎯 UI DEBUG: Dialog NOT closing - success=$success, mounted=$mounted');
+                      if (!success) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Failed to leave geofence'),
+                            backgroundColor: AppColors.error,
+                          ),
+                        );
+                      }
+                    }
+                  } catch (e) {
+                    print('🎯 UI DEBUG: Exception in leave button callback: $e');
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error: $e'),
+                          backgroundColor: AppColors.error,
+                        ),
+                      );
+                    }
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.error,
+                  minimumSize: const Size(100, 40),
+                ),
+                child: isJoining 
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Text('Leave', style: TextStyle(color: Colors.white)),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showGeofenceLeaveDialog(Campaign campaign, Geofence geofence) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Leave Geofence'),
+        content: Text(
+          'Are you sure you want to leave "${geofence.name ?? 'this geofence'}" in "${campaign.name ?? 'this campaign'}"?\n\n'
+          'You will stop earning from this geofence area and may need to reapply to join again.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          Consumer(
+            builder: (context, ref, child) {
+              final isJoining = ref.watch(campaignProvider).isJoining;
+              print('🎯 UI DEBUG: Dialog button builder - isJoining = $isJoining');
+              return ElevatedButton(
+                onPressed: isJoining ? null : () async {
+                  try {
+                    print('🎯 UI DEBUG: Leave button pressed in _showGeofenceLeaveDialog');
+                    // Create a temporary state with the geofence we want to leave
+                    final campaignNotifier = ref.read(campaignProvider.notifier);
+                    print('🎯 UI DEBUG: About to call leaveSpecificGeofence with ${geofence.id}');
+                    final success = await campaignNotifier.leaveSpecificGeofence(geofence.id);
+                    print('🎯 UI DEBUG: leaveSpecificGeofence call completed with success = $success');
+                    
+                    print('🎯 UI DEBUG: mounted = $mounted');
+                    
+                    if (success && mounted) {
+                      print('🎯 UI DEBUG: Closing dialog and showing success snackbar');
+                      Navigator.of(context).pop();
+                      
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Successfully left geofence'),
+                          backgroundColor: AppColors.success,
+                        ),
+                      );
+                      
+                      // Force UI rebuild by calling setState if needed
+                      if (mounted) {
+                        setState(() {});
+                      }
+                    } else {
+                      print('🎯 UI DEBUG: Dialog NOT closing - success=$success, mounted=$mounted');
+                      if (!success) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Failed to leave geofence'),
+                            backgroundColor: AppColors.error,
+                          ),
+                        );
+                      }
+                    }
+                  } catch (e) {
+                    print('🎯 UI DEBUG: Exception in leave button callback: $e');
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error: $e'),
+                          backgroundColor: AppColors.error,
+                        ),
+                      );
+                    }
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.error,
+                  minimumSize: const Size(100, 40),
+                ),
+                child: isJoining 
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Text('Leave', style: TextStyle(color: Colors.white)),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCampaignDetails(Campaign campaign) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => CampaignDetailsScreen(campaign: campaign),
+      ),
+    );
+  }
+
+  void _showLeaveCampaignDialog(Campaign campaign) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Leave Campaign'),
+        content: Text(
+          'Are you sure you want to leave "${campaign.name ?? 'this campaign'}"?\n\n'
+          'You will stop earning from this campaign and may need to reapply to join again.',
         ),
         actions: [
           TextButton(
@@ -298,13 +523,13 @@ class _CampaignListScreenState extends ConsumerState<CampaignListScreen>
                 onPressed: () async {
                   final success = await ref
                       .read(campaignProvider.notifier)
-                      .leaveCurrentGeofence();
+                      .leaveCampaign();
                   
                   if (success && mounted) {
                     Navigator.of(context).pop();
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('Successfully left geofence'),
+                        content: Text('Successfully left campaign'),
                         backgroundColor: AppColors.success,
                       ),
                     );
@@ -318,14 +543,6 @@ class _CampaignListScreenState extends ConsumerState<CampaignListScreen>
             },
           ),
         ],
-      ),
-    );
-  }
-
-  void _showCampaignDetails(Campaign campaign) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => CampaignDetailsScreen(campaign: campaign),
       ),
     );
   }

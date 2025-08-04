@@ -32,6 +32,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _isInitialLoading = true;
   bool _isRefreshing = false; // Prevent duplicate refresh calls
+  bool _showDebugCard = false; // Toggle for debug card visibility
   GoogleMapController? _mapController;
   Set<Circle> _geofenceCircles = {};
   Set<Marker> _geofenceMarkers = {};
@@ -567,7 +568,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Compact Active Campaign card (shown when campaign is active)
-                      if (activeCampaign != null)
+                      if (activeCampaign != null && activeCampaign.activeGeofences.isNotEmpty)
                         _buildCompactCampaignCard(activeCampaign, locationState),
 
                       // Rider status card (only shown when no active campaign)
@@ -583,20 +584,68 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           },
                         ),
 
-                      // Debug info card (only in debug mode)
-                      if (kDebugMode)
-                        Card(
-                          elevation: 4,
-                          margin: const EdgeInsets.only(bottom: 16),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Debug Info:',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium),
+                      // Debug info card (only in debug mode with toggle)
+                      if (kDebugMode) ...[
+                        // Debug toggle button
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Debug Info',
+                                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                              TextButton.icon(
+                                onPressed: () {
+                                  setState(() {
+                                    _showDebugCard = !_showDebugCard;
+                                  });
+                                },
+                                icon: Icon(
+                                  _showDebugCard ? Icons.visibility_off : Icons.visibility,
+                                  size: 16,
+                                ),
+                                label: Text(
+                                  _showDebugCard ? 'Hide' : 'Show',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        
+                        // Debug card content (collapsible)
+                        if (_showDebugCard)
+                          Card(
+                            elevation: 4,
+                            margin: const EdgeInsets.only(bottom: 16),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text('Debug Info:',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium),
+                                      IconButton(
+                                        onPressed: () {
+                                          setState(() {
+                                            _showDebugCard = false;
+                                          });
+                                        },
+                                        icon: const Icon(Icons.close, size: 18),
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                      ),
+                                    ],
+                                  ),
                                 const SizedBox(height: 8),
                                 Text('Rider: ${rider?.firstName ?? 'null'}'),
                                 Text('Status: ${rider?.status ?? 'null'}'),
@@ -644,10 +693,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 Text('Active Verification: ${ref.watch(hasActiveVerificationProvider)}'),
                                 if (_randomVerificationService?.nextCheckTime != null)
                                   _buildNextCheckCountdown(_randomVerificationService!.nextCheckTime!),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
-                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -670,7 +720,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8), // Reduced from 16 to 8 to push card up
-      height: MediaQuery.of(context).size.height * 0.24, // Increased from 0.22 to 0.24 to fix overflow
+      height: MediaQuery.of(context).size.height * 0.25, // Increased from 0.24 to 0.25 to fix 2px overflow
       child: Card(
         elevation: 6,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -852,13 +902,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         : (activeGeofenceAssignment?.distanceCovered ?? 0.0).toStringAsFixed(1);
     
     final displayEarnings = locationState.isTracking 
-        ? trackingStats.totalGeofenceEarnings.toStringAsFixed(0)
-        : (activeGeofenceAssignment?.amountEarned ?? 0.0).toStringAsFixed(0);
+        ? trackingStats.totalGeofenceEarnings.toStringAsFixed(2) // Show more precision for debugging
+        : (activeGeofenceAssignment?.amountEarned ?? 0.0).toStringAsFixed(2);
     
-    // Get rate from current geofence or assignment
-    final displayRate = trackingStats.currentGeofence?.ratePerKm?.toStringAsFixed(0) 
-        ?? activeGeofenceAssignment?.ratePerKm?.toStringAsFixed(0) 
-        ?? '0';
+    // Get rate and rate type information for better display
+    final currentGeofence = trackingStats.currentGeofence;
+    final rateType = currentGeofence?.rateType ?? 'unknown';
+    final ratePerKm = currentGeofence?.ratePerKm ?? activeGeofenceAssignment?.ratePerKm ?? 0.0;
+    final ratePerHour = currentGeofence?.ratePerHour ?? 0.0;
+    
+    // Create rate display based on rate type
+    String displayRate;
+    if (rateType == 'per_km') {
+      displayRate = '₦${ratePerKm.toStringAsFixed(0)}/km';
+    } else if (rateType == 'per_hour') {
+      displayRate = '₦${ratePerHour.toStringAsFixed(0)}/hr';
+    } else if (rateType == 'hybrid') {
+      displayRate = '₦${ratePerKm.toStringAsFixed(0)}/km + ₦${ratePerHour.toStringAsFixed(0)}/hr';
+    } else if (rateType == 'fixed_daily') {
+      final dailyRate = currentGeofence?.fixedDailyRate ?? 0.0;
+      displayRate = '₦${dailyRate.toStringAsFixed(0)}/day';
+    } else {
+      displayRate = '₦${ratePerKm.toStringAsFixed(0)}/km';
+    }
     
     return Column(
       children: [
@@ -881,7 +947,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             Expanded(
               child: _buildAssignmentStat(
                 'Rate',
-                '₦${displayRate}/km',
+                displayRate,
                 Icons.attach_money,
                 isLive: false, // Rate doesn't change in real-time
               ),
@@ -897,65 +963,68 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 '₦${displayEarnings}',
                 Icons.account_balance_wallet,
                 isLive: locationState.isTracking,
+                subtitle: trackingStats.isWithinGeofence 
+                    ? 'In geofence' 
+                    : (locationState.isTracking ? 'Outside geofence' : null),
               ),
             ),
           ],
         ),
         
         // Current geofence session info (if in geofence and tracking)
-        if (locationState.isTracking && trackingStats.isWithinGeofence && trackingStats.currentGeofence != null) ...[
-          const SizedBox(height: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.green.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: Colors.green.withOpacity(0.3)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.location_on, size: 10, color: Colors.green),
-                const SizedBox(width: 4),
-                Text(
-                  'In ${trackingStats.currentGeofence.name}',
-                  style: const TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.green,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '${currentGeofenceDistance.toStringAsFixed(1)}km',
-                  style: const TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green,
-                  ),
-                ),
-                if (currentGeofenceMinutes > 0) ...[
-                  const SizedBox(width: 8), 
-                  Icon(Icons.access_time, size: 10, color: Colors.green),
-                  const SizedBox(width: 2),
-                  Text(
-                    '${currentGeofenceMinutes}min',
-                    style: const TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
+        // if (locationState.isTracking && trackingStats.isWithinGeofence && trackingStats.currentGeofence != null) ...[
+        //   const SizedBox(height: 6),
+        //   Container(
+        //     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        //     decoration: BoxDecoration(
+        //       color: Colors.green.withOpacity(0.1),
+        //       borderRadius: BorderRadius.circular(6),
+        //       border: Border.all(color: Colors.green.withOpacity(0.3)),
+        //     ),
+        //     child: Row(
+        //       mainAxisAlignment: MainAxisAlignment.center,
+        //       children: [
+        //         Icon(Icons.location_on, size: 10, color: Colors.green),
+        //         const SizedBox(width: 4),
+        //         Text(
+        //           'In ${trackingStats.currentGeofence.name}',
+        //           style: const TextStyle(
+        //             fontSize: 9,
+        //             fontWeight: FontWeight.w600,
+        //             color: Colors.green,
+        //           ),
+        //         ),
+        //         const SizedBox(width: 8),
+        //         Text(
+        //           '${currentGeofenceDistance.toStringAsFixed(1)}km',
+        //           style: const TextStyle(
+        //             fontSize: 9,
+        //             fontWeight: FontWeight.bold,
+        //             color: Colors.green,
+        //           ),
+        //         ),
+        //         if (currentGeofenceMinutes > 0) ...[
+        //           const SizedBox(width: 8), 
+        //           Icon(Icons.access_time, size: 10, color: Colors.green),
+        //           const SizedBox(width: 2),
+        //           Text(
+        //             '${currentGeofenceMinutes}min',
+        //             style: const TextStyle(
+        //               fontSize: 9,
+        //               fontWeight: FontWeight.bold,
+        //               color: Colors.green,
+        //             ),
+        //           ),
+        //         ],
+        //       ],
+        //     ),
+        //   ),
+        // ],
       ],
     );
   }
 
-  Widget _buildAssignmentStat(String label, String value, IconData icon, {bool isLive = false}) {
+  Widget _buildAssignmentStat(String label, String value, IconData icon, {bool isLive = false, String? subtitle}) {
     return Column(
       children: [
         Row(
@@ -979,7 +1048,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ],
           ],
         ),
-        const SizedBox(height: 1), // Reduced from 2 to 1
+        const SizedBox(height: 1),
         Text(
           label,
           style: const TextStyle(
@@ -989,7 +1058,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           textAlign: TextAlign.center,
         ),
-        // Removed the SizedBox(height: 1) between label and value
         Text(
           value,
           style: TextStyle(
@@ -1001,6 +1069,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
+        if (subtitle != null) ...[
+          const SizedBox(height: 1),
+          Text(
+            subtitle,
+            style: TextStyle(
+              fontSize: 7,
+              color: subtitle.contains('Outside') ? Colors.orange : Colors.green,
+              fontWeight: FontWeight.w400,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ],
     );
   }

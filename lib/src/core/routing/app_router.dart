@@ -12,6 +12,11 @@ import '../../features/campaigns/screens/campaign_list_screen.dart';
 import '../../features/verification/screens/verification_screen.dart';
 import '../../features/earnings/screens/earnings_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
+import '../../features/fleet/screens/fleet_join_screen.dart';
+import '../../features/fleet/screens/fleet_management_screen.dart';
+import '../../features/bank_accounts/screens/bank_accounts_screen.dart';
+import '../../features/bank_accounts/screens/add_bank_account_screen.dart';
+import '../../features/bank_accounts/screens/verification_logs_screen.dart';
 import '../models/verification_request.dart';
 
 class AppRouter {
@@ -147,6 +152,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
       
+      // Fleet routes
+      GoRoute(
+        path: '/join-fleet',
+        builder: (context, state) => const FleetJoinScreen(),
+      ),
+      GoRoute(
+        path: '/fleet-management',
+        builder: (context, state) => const FleetManagementScreen(),
+      ),
+      
       // Verification screen (modal)
       GoRoute(
         path: '/verification',
@@ -157,6 +172,22 @@ final routerProvider = Provider<GoRouter>((ref) {
             child: VerificationScreen(request: request),
           );
         },
+      ),
+      
+      // Bank account routes
+      GoRoute(
+        path: '/bank-accounts',
+        builder: (context, state) => const BankAccountsScreen(),
+        routes: [
+          GoRoute(
+            path: '/add',
+            builder: (context, state) => const AddBankAccountScreen(),
+          ),
+          GoRoute(
+            path: '/verification-logs',
+            builder: (context, state) => const VerificationLogsScreen(),
+          ),
+        ],
       ),
     ],
     errorBuilder: (context, state) => Scaffold(

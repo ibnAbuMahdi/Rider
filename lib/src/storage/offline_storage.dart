@@ -102,7 +102,8 @@ class OfflineStorage {
         
         try {
           final apiService = ApiService.instance;
-          final result = await apiService.syncLocationBatch(batch);
+          final batchId = 'batch_${DateTime.now().millisecondsSinceEpoch}_$i';
+          final result = await apiService.syncLocationBatch(batch, batchId);
           if (result['success'] == true) {
             for (final location in batch) {
               final updated = location.copyWith(isSynced: true);
@@ -219,7 +220,8 @@ class OfflineStorage {
         await apiService.submitVerification(action.data);
         break;
       case 'location':
-        await apiService.syncLocationBatch([action.data]);
+        final batchId = 'single_${DateTime.now().millisecondsSinceEpoch}';
+        await apiService.syncLocationBatch([action.data], batchId);
         break;
       case 'earnings':
         await apiService.syncEarning(action.data);

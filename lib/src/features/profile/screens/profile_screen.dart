@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/providers/auth_provider.dart';
+import '../../../core/providers/fleet_provider.dart';
 import '../../../core/theme/app_colors.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -10,6 +12,8 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final rider = ref.watch(currentRiderProvider);
+    final fleetStatus = ref.watch(fleetStatusProvider);
+    final fleetActions = ref.watch(fleetActionsProvider);
     
     return Scaffold(
       appBar: AppBar(
@@ -72,6 +76,9 @@ class ProfileScreen extends ConsumerWidget {
             ),
           ),
           
+          // Fleet Status Card
+          _buildFleetStatusCard(context, ref, fleetActions),
+          
           // Profile options
           Expanded(
             child: ListView(
@@ -82,11 +89,16 @@ class ProfileScreen extends ConsumerWidget {
                   Icons.person,
                   () {},
                 ),
+                _buildFleetOption(
+                  context,
+                  ref,
+                  fleetActions,
+                ),
                 _buildProfileOption(
                   context,
                   'Bank Details',
                   Icons.account_balance,
-                  () {},
+                  () => context.push('/bank-accounts'),
                 ),
                 _buildProfileOption(
                   context,
@@ -118,6 +130,121 @@ class ProfileScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Widget _buildFleetStatusCard(BuildContext context, WidgetRef ref, FleetActions fleetActions) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    fleetActions.isInFleet ? Icons.business : Icons.person,
+                    color: AppColors.primary,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Fleet Status',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          fleetActions.statusDisplay,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: fleetActions.isInFleet ? Colors.green[100] : Colors.blue[100],
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      fleetActions.isInFleet ? 'Fleet Member' : 'Independent',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: fleetActions.isInFleet ? Colors.green[800] : Colors.blue[800],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (fleetActions.isInFleet) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Commission Rate:',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                      Text(
+                        '${fleetActions.commissionRate.toStringAsFixed(1)}%',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFleetOption(BuildContext context, WidgetRef ref, FleetActions fleetActions) {
+    if (fleetActions.isInFleet) {
+      return _buildProfileOption(
+        context,
+        'Fleet Management',
+        Icons.business,
+        () => context.push('/fleet-management'),
+      );
+    } else {
+      return _buildProfileOption(
+        context,
+        'Join Fleet',
+        Icons.group_add,
+        () => context.push('/join-fleet'),
+      );
+    }
   }
 
   Widget _buildProfileOption(

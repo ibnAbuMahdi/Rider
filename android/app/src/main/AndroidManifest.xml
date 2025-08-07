@@ -32,12 +32,12 @@
     <!-- Battery optimization -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     
-    <!-- Phone state for device identification -->
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <!-- Phone state for device identification - REMOVED FOR GOOGLE PLAY COMPLIANCE -->
+    <!-- <uses-permission android:name="android.permission.READ_PHONE_STATE" /> -->
     
-    <!-- SMS permissions for SMS service -->
-    <uses-permission android:name="android.permission.SEND_SMS" />
-    <uses-permission android:name="android.permission.READ_SMS" />
+    <!-- SMS permissions for SMS service - REMOVED FOR GOOGLE PLAY COMPLIANCE -->
+    <!-- <uses-permission android:name="android.permission.SEND_SMS" /> -->
+    <!-- <uses-permission android:name="android.permission.READ_SMS" /> -->
     
     <!-- Camera feature requirement -->
     <uses-feature 

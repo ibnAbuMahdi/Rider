@@ -129,113 +129,8 @@ class CampaignService {
   }
 
   List<Campaign> _getMockCampaigns() {
-    print('🎭 USING MOCK DATA: Returning 4 mock campaigns');
-    return [
-      Campaign(
-        id: 'camp_001',
-        name: 'Coca-Cola Lagos Campaign',
-        description: 'Promote Coca-Cola across Lagos mainland and island areas',
-        clientName: 'Coca-Cola Nigeria',
-        agencyId: 'agency_001',
-        agencyName: 'Publicis Lagos',
-        stickerImageUrl: 'https://picsum.photos/400/200?random=1',
-        ratePerKm: 25.0,
-        startDate: DateTime.now().subtract(const Duration(days: 5)),
-        endDate: DateTime.now().add(const Duration(days: 30)),
-        status: CampaignStatus.running,
-        maxRiders: 200,
-        currentRiders: 150,
-        requirements: const CampaignRequirements(
-          minRating: 4,
-          minCompletedCampaigns: 2,
-          requiresVerification: true,
-        ),
-        estimatedWeeklyEarnings: 15000.0,
-        area: 'Lagos Island & Mainland',
-        createdAt: DateTime.now().subtract(const Duration(days: 10)),
-        isActive: true,
-        budget: 5000000.0,
-        spent: 2500000.0,
-      ),
-      Campaign(
-        id: 'camp_002', 
-        name: 'MTN Data Campaign',
-        description: 'Advertise MTN data packages in high-traffic areas',
-        clientName: 'MTN Nigeria',
-        agencyId: 'agency_002',
-        agencyName: 'Noah\'s Ark Lagos',
-        stickerImageUrl: 'https://picsum.photos/400/200?random=2',
-        ratePerKm: 30.0,
-        startDate: DateTime.now().subtract(const Duration(days: 2)),
-        endDate: DateTime.now().add(const Duration(days: 45)),
-        status: CampaignStatus.running,
-        maxRiders: 150,
-        currentRiders: 95,
-        requirements: const CampaignRequirements(
-          minRating: 3,
-          minCompletedCampaigns: 1,
-          requiresVerification: true,
-        ),
-        estimatedWeeklyEarnings: 18000.0,
-        area: 'Victoria Island, Ikoyi, Lekki',
-        createdAt: DateTime.now().subtract(const Duration(days: 7)),
-        isActive: true,
-        budget: 3500000.0,
-        spent: 875000.0,
-      ),
-      Campaign(
-        id: 'camp_003',
-        name: 'Dangote Cement Promo',
-        description: 'Building materials awareness campaign',
-        clientName: 'Dangote Cement',
-        agencyId: 'agency_003',
-        agencyName: 'X3M Ideas',
-        stickerImageUrl: 'https://picsum.photos/400/200?random=3',
-        ratePerKm: 20.0,
-        startDate: DateTime.now().add(const Duration(days: 5)),
-        endDate: DateTime.now().add(const Duration(days: 60)),
-        status: CampaignStatus.pending,
-        maxRiders: 100,
-        currentRiders: 0,
-        requirements: const CampaignRequirements(
-          minRating: 4,
-          minCompletedCampaigns: 3,
-          requiresVerification: true,
-        ),
-        estimatedWeeklyEarnings: 12000.0,
-        area: 'Ikeja, Surulere, Yaba',
-        createdAt: DateTime.now().subtract(const Duration(days: 3)),
-        isActive: false,
-        budget: 2000000.0,
-        spent: 0.0,
-      ),
-      Campaign(
-        id: 'camp_004',
-        name: 'Zenith Bank Digital',
-        description: 'Promote Zenith Bank mobile banking app',
-        clientName: 'Zenith Bank',
-        agencyId: 'agency_004', 
-        agencyName: 'Insight Communications',
-        stickerImageUrl: 'https://picsum.photos/400/200?random=4',
-        ratePerKm: 35.0,
-        startDate: DateTime.now().subtract(const Duration(days: 1)),
-        endDate: DateTime.now().add(const Duration(days: 21)),
-        status: CampaignStatus.running,
-        maxRiders: 75,
-        currentRiders: 75,
-        requirements: const CampaignRequirements(
-          minRating: 5,
-          minCompletedCampaigns: 5,
-          requiresVerification: true,
-        ),
-        estimatedWeeklyEarnings: 21000.0,
-        area: 'Marina, CMS, Broad Street',
-        createdAt: DateTime.now().subtract(const Duration(days: 5)),
-        isActive: true,
-        budget: 1500000.0,
-        spent: 300000.0,
-      ),
-    ];
+    print('🎭 MOCK DATA DISABLED: Returning empty list instead of placeholder campaigns');
+    return [];
   }
 
   Future<Campaign> getCampaignDetails(String campaignId) async {
@@ -702,11 +597,27 @@ class CampaignService {
       );
       
       if (response.statusCode == 200) {
-        print('🎯 GEOFENCE ELIGIBILITY SUCCESS: Rider is eligible');
-        return CampaignResult(
-          success: true,
-          data: response.data,
-        );
+        final responseData = response.data as Map<String, dynamic>?;
+        final canJoin = responseData?['can_join'] ?? false;
+        
+        if (canJoin) {
+          print('🎯 GEOFENCE ELIGIBILITY SUCCESS: Rider is eligible');
+          return CampaignResult(
+            success: true,
+            data: response.data,
+          );
+        } else {
+          // 200 status but can_join is false - extract error from reasons
+          final reasons = responseData?['reasons'] as List<dynamic>?;
+          final errorMessage = reasons?.isNotEmpty == true 
+              ? reasons!.first.toString()
+              : 'Not eligible to join geofence';
+          print('🎯 GEOFENCE ELIGIBILITY ERROR: $errorMessage');
+          return CampaignResult(
+            success: false,
+            error: errorMessage,
+          );
+        }
       } else {
         final errorData = response.data;
         final errorMessage = _extractErrorMessage(errorData) ?? 'Not eligible to join geofence';

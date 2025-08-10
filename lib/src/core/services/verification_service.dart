@@ -1,8 +1,11 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../models/verification_request.dart';
 import '../constants/app_constants.dart';
 import 'api_service.dart';
+import 'notification_service.dart';
+// import 'sms_service.dart'; // Disabled SMS for now
 
 class VerificationResult {
   final bool success;
@@ -263,12 +266,19 @@ class VerificationService {
       );
 
       if (response.statusCode == 201) {
+        final verification = response.data['verification'] != null 
+            ? VerificationRequest.fromJson(response.data['verification'])
+            : null;
+            
+        // Send sound notification and SMS alert for new verification
+        if (verification != null) {
+          await _sendVerificationNotifications(verification);
+        }
+        
         return VerificationResult(
           success: true,
           data: response.data,
-          request: response.data['verification'] != null 
-              ? VerificationRequest.fromJson(response.data['verification'])
-              : null,
+          request: verification,
         );
       } else {
         return VerificationResult(
@@ -358,14 +368,23 @@ class VerificationService {
       );
 
       if (response.statusCode == 200) {
+        // Send success notification with sound
+        final campaignName = response.data['campaign_name'] ?? 'Campaign';
+        await sendVerificationSuccess(campaignName);
+        
         return VerificationResult(
           success: true,
           data: response.data,
         );
       } else {
+        // Send failure notification with sound
+        final campaignName = response.data['campaign_name'] ?? 'Campaign';
+        final errorMessage = response.data['message'] ?? 'Verification failed';
+        await sendVerificationFailed(campaignName, errorMessage);
+        
         return VerificationResult(
           success: false,
-          error: response.data['message'] ?? 'Verification failed',
+          error: errorMessage,
         );
       }
     } on DioException catch (e) {
@@ -384,6 +403,144 @@ class VerificationService {
       throw Exception('Network error: ${e.message}');
     } catch (e) {
       throw Exception('Failed to submit verification: $e');
+    }
+  }
+
+  /// Send sound notifications and SMS alerts for new verification
+  Future<void> _sendVerificationNotifications(VerificationRequest verification) async {
+    try {
+      final timeoutMinutes = verification.timeoutInMinutes ?? 15;
+      final campaignName = verification.campaignName ?? 'Unknown Campaign';
+
+      if (kDebugMode) {
+        print('🔊 Sending verification notifications for campaign: $campaignName');
+      }
+
+      // Send sound notification with visual alert
+      await NotificationService.showVerificationRequired(
+        campaignName: campaignName,
+        timeoutMinutes: timeoutMinutes,
+        isUrgent: false,
+      );
+
+      // Send SMS backup notification (disabled for now)
+      // await SMSService.sendVerificationAlert(
+      //   campaignName: campaignName,
+      //   timeoutMinutes: timeoutMinutes,
+      //   verificationId: verification.id.toString(),
+      // );
+
+      if (kDebugMode) {
+        print('🔊 Verification notifications sent successfully');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to send verification notifications: $e');
+      }
+      // Don't throw - notifications are not critical for verification flow
+    }
+  }
+
+  /// Send urgent verification alert (for repeated notifications)
+  Future<void> sendUrgentVerificationAlert(VerificationRequest verification) async {
+    try {
+      final timeoutMinutes = verification.remainingTimeInMinutes ?? 5;
+      final campaignName = verification.campaignName ?? 'Unknown Campaign';
+
+      if (kDebugMode) {
+        print('🔊 Sending URGENT verification alert for campaign: $campaignName');
+      }
+
+      // Send urgent sound notification with repeating alerts
+      await NotificationService.showRepeatingVerificationAlert(
+        campaignName: campaignName,
+        timeoutMinutes: timeoutMinutes,
+        repeatCount: 3,
+      );
+
+      // Send urgent SMS notification (disabled for now)
+      // await SMSService.sendUrgentVerificationAlert(
+      //   campaignName: campaignName,
+      //   timeoutMinutes: timeoutMinutes,
+      //   verificationId: verification.id.toString(),
+      // );
+
+      if (kDebugMode) {
+        print('🔊 Urgent verification alert sent successfully');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to send urgent verification alert: $e');
+      }
+    }
+  }
+
+  /// Send timeout warning notification
+  Future<void> sendTimeoutWarning(VerificationRequest verification) async {
+    try {
+      final timeoutMinutes = verification.remainingTimeInMinutes ?? 2;
+      final campaignName = verification.campaignName ?? 'Unknown Campaign';
+
+      if (kDebugMode) {
+        print('🔊 Sending timeout warning for campaign: $campaignName');
+      }
+
+      // Send timeout warning notification with sound
+      await NotificationService.showVerificationTimeoutWarning(
+        campaignName: campaignName,
+        timeoutMinutes: timeoutMinutes,
+      );
+
+      if (kDebugMode) {
+        print('🔊 Timeout warning sent successfully');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to send timeout warning: $e');
+      }
+    }
+  }
+
+  /// Send verification success notification
+  Future<void> sendVerificationSuccess(String campaignName) async {
+    try {
+      if (kDebugMode) {
+        print('🔊 Sending verification success notification for: $campaignName');
+      }
+
+      await NotificationService.showVerificationSuccess(
+        campaignName: campaignName,
+      );
+
+      if (kDebugMode) {
+        print('🔊 Verification success notification sent');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to send verification success notification: $e');
+      }
+    }
+  }
+
+  /// Send verification failed notification
+  Future<void> sendVerificationFailed(String campaignName, String reason) async {
+    try {
+      if (kDebugMode) {
+        print('🔊 Sending verification failed notification for: $campaignName');
+      }
+
+      await NotificationService.showVerificationFailed(
+        campaignName: campaignName,
+        reason: reason,
+      );
+
+      if (kDebugMode) {
+        print('🔊 Verification failed notification sent');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to send verification failed notification: $e');
+      }
     }
   }
 }

@@ -971,55 +971,59 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ],
         ),
         
-        // Current geofence session info (if in geofence and tracking)
-        // if (locationState.isTracking && trackingStats.isWithinGeofence && trackingStats.currentGeofence != null) ...[
-        //   const SizedBox(height: 6),
-        //   Container(
-        //     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        //     decoration: BoxDecoration(
-        //       color: Colors.green.withOpacity(0.1),
-        //       borderRadius: BorderRadius.circular(6),
-        //       border: Border.all(color: Colors.green.withOpacity(0.3)),
-        //     ),
-        //     child: Row(
-        //       mainAxisAlignment: MainAxisAlignment.center,
-        //       children: [
-        //         Icon(Icons.location_on, size: 10, color: Colors.green),
-        //         const SizedBox(width: 4),
-        //         Text(
-        //           'In ${trackingStats.currentGeofence.name}',
-        //           style: const TextStyle(
-        //             fontSize: 9,
-        //             fontWeight: FontWeight.w600,
-        //             color: Colors.green,
-        //           ),
-        //         ),
-        //         const SizedBox(width: 8),
-        //         Text(
-        //           '${currentGeofenceDistance.toStringAsFixed(1)}km',
-        //           style: const TextStyle(
-        //             fontSize: 9,
-        //             fontWeight: FontWeight.bold,
-        //             color: Colors.green,
-        //           ),
-        //         ),
-        //         if (currentGeofenceMinutes > 0) ...[
-        //           const SizedBox(width: 8), 
-        //           Icon(Icons.access_time, size: 10, color: Colors.green),
-        //           const SizedBox(width: 2),
-        //           Text(
-        //             '${currentGeofenceMinutes}min',
-        //             style: const TextStyle(
-        //               fontSize: 9,
-        //               fontWeight: FontWeight.bold,
-        //               color: Colors.green,
-        //             ),
-        //           ),
-        //         ],
-        //       ],
-        //     ),
-        //   ),
-        // ],
+        // Current geofence session info (show for per_hour rates and when in geofence)
+        if (locationState.isTracking && trackingStats.isWithinGeofence && trackingStats.currentGeofence != null) ...[
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.green.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: Colors.green.withOpacity(0.3)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.location_on, size: 10, color: Colors.green),
+                const SizedBox(width: 4),
+                Text(
+                  'In ${trackingStats.currentGeofence!.name}',
+                  style: const TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.green,
+                  ),
+                ),
+                // Show distance for distance-based rates
+                if (rateType == 'per_km' || rateType == 'hybrid') ...[
+                  const SizedBox(width: 8),
+                  Text(
+                    '${currentGeofenceDistance.toStringAsFixed(1)}km',
+                    style: const TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
+                  ),
+                ],
+                // Show time for time-based rates (per_hour, hybrid, fixed_daily)
+                if ((rateType == 'per_hour' || rateType == 'hybrid' || rateType == 'fixed_daily') && currentGeofenceMinutes > 0) ...[
+                  const SizedBox(width: 8), 
+                  Icon(Icons.access_time, size: 10, color: Colors.green),
+                  const SizedBox(width: 2),
+                  Text(
+                    '${currentGeofenceMinutes}min',
+                    style: const TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }

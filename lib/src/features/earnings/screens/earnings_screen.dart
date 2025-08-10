@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/providers/earnings_provider.dart';
+import '../../../core/providers/enhanced_earnings_provider.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/models/earning.dart';
+import '../../../core/models/campaign_earnings.dart';
 import '../widgets/earnings_summary_card.dart';
-import '../widgets/earning_item_tile.dart';
+import '../widgets/campaign_assignment_card.dart';
 import '../widgets/payment_request_bottom_sheet.dart';
 
 class EarningsScreen extends ConsumerStatefulWidget {
@@ -14,26 +14,23 @@ class EarningsScreen extends ConsumerStatefulWidget {
   ConsumerState<EarningsScreen> createState() => _EarningsScreenState();
 }
 
-class _EarningsScreenState extends ConsumerState<EarningsScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _EarningsScreenState extends ConsumerState<EarningsScreen> {
   final ScrollController _scrollController = ScrollController();
+  String _selectedFilter = 'all'; // 'all', 'active', 'completed'
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
     _scrollController.addListener(_onScroll);
     
     // Load data on first load
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(earningsProvider.notifier).refresh();
+      _refreshEarnings();
     });
   }
 
   @override
   void dispose() {
-    _tabController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -41,14 +38,16 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen>
   void _onScroll() {
     if (_scrollController.position.pixels >= 
         _scrollController.position.maxScrollExtent - 200) {
-      ref.read(earningsProvider.notifier).loadMore();
+      // Load more assignments when scrolling near the end
+      ref.read(campaignAssignmentsProvider.notifier).loadMore();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final earningsState = ref.watch(earningsProvider);
-    final paymentSummary = ref.watch(paymentSummaryProvider);
+    final earningsOverview = ref.watch(earningsOverviewProvider);
+    final campaignAssignments = ref.watch(campaignAssignmentsProvider);
+    final isLoading = ref.watch(earningsLoadingProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -63,51 +62,119 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen>
         backgroundColor: AppColors.primary,
         elevation: 0,
         actions: [
+          // Filter button
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.filter_list, color: Colors.white),
+            onSelected: (value) {
+              setState(() {
+                _selectedFilter = value;
+              });
+              _applyFilter(value);
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'all',
+                child: Text('All Assignments'),
+              ),
+              const PopupMenuItem(
+                value: 'active',
+                child: Text('Active Only'),
+              ),
+              const PopupMenuItem(
+                value: 'completed',
+                child: Text('Completed'),
+              ),
+            ],
+          ),
           IconButton(
-            onPressed: () => ref.read(earningsProvider.notifier).refresh(),
+            onPressed: () => _refreshEarnings(),
             icon: const Icon(Icons.refresh, color: Colors.white),
           ),
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () => ref.read(earningsProvider.notifier).refresh(),
-        child: Column(
-          children: [
-            // Summary Section
-            if (paymentSummary != null)
-              EarningsSummaryCard(summary: paymentSummary),
+        onRefresh: _refreshEarnings,
+        child: CustomScrollView(
+          controller: _scrollController,
+          slivers: [
+            // Summary Card
+            if (earningsOverview != null)
+              SliverToBoxAdapter(
+                child: EarningsSummaryCard(overview: earningsOverview),
+              ),
             
-            // Tab Bar
-            Container(
-              color: Colors.white,
-              child: TabBar(
-                controller: _tabController,
-                labelColor: AppColors.primary,
-                unselectedLabelColor: AppColors.textSecondary,
-                indicatorColor: AppColors.primary,
-                tabs: const [
-                  Tab(text: 'All'),
-                  Tab(text: 'Pending'),
-                  Tab(text: 'Paid'),
-                ],
+            // Section header
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Campaign Earnings History',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    if (campaignAssignments.isNotEmpty)
+                      Text(
+                        '${campaignAssignments.length} assignments',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textSecondary.withOpacity(0.8),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
             
-            // Tab Content
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildEarningsList(earningsState.earnings),
-                  _buildEarningsList(ref.watch(pendingEarningsProvider)),
-                  _buildEarningsList(ref.watch(paidEarningsProvider)),
-                ],
+            // Campaign assignments list
+            if (isLoading && campaignAssignments.isEmpty)
+              SliverToBoxAdapter(
+                child: _buildLoadingState(),
+              )
+            else if (campaignAssignments.isEmpty)
+              SliverToBoxAdapter(
+                child: _buildEmptyState(),
+              )
+            else
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    if (index == campaignAssignments.length) {
+                      // Loading indicator at the end
+                      return isLoading
+                          ? const Padding(
+                              padding: EdgeInsets.all(16),
+                              child: Center(
+                                child: CircularProgressIndicator(),
+                              ),
+                            )
+                          : const SizedBox.shrink();
+                    }
+
+                    final assignment = campaignAssignments[index];
+                    return CampaignAssignmentCard(
+                      assignment: assignment,
+                      onTap: () => _showAssignmentDetails(context, assignment),
+                    );
+                  },
+                  childCount: campaignAssignments.length + (isLoading ? 1 : 0),
+                ),
               ),
+            
+            // Bottom padding for FAB
+            const SliverToBoxAdapter(
+              child: SizedBox(height: 80),
             ),
           ],
         ),
       ),
-      floatingActionButton: paymentSummary != null && paymentSummary.pendingEarnings > 0
+      floatingActionButton: earningsOverview != null && earningsOverview.hasPendingPayments
           ? FloatingActionButton.extended(
               onPressed: () => _showPaymentRequestBottomSheet(context),
               backgroundColor: AppColors.success,
@@ -121,40 +188,29 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen>
     );
   }
 
-  Widget _buildEarningsList(List<Earning> earnings) {
-    if (earnings.isEmpty) {
-      return _buildEmptyState();
-    }
+  Future<void> _refreshEarnings() async {
+    await Future.wait([
+      ref.read(earningsOverviewProvider.notifier).refresh(),
+      ref.read(campaignAssignmentsProvider.notifier).refresh(),
+    ]);
+  }
 
-    return ListView.builder(
-      controller: _scrollController,
-      padding: const EdgeInsets.all(16),
-      itemCount: earnings.length + 1, // +1 for loading indicator
-      itemBuilder: (context, index) {
-        if (index == earnings.length) {
-          // Loading indicator at the end
-          final earningsState = ref.watch(earningsProvider);
-          return earningsState.isLoading && earningsState.hasMore
-              ? const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Center(
-                    child: CircularProgressIndicator(),
-                  ),
-                )
-              : const SizedBox.shrink();
-        }
+  void _applyFilter(String filter) {
+    ref.read(campaignAssignmentsProvider.notifier).applyFilter(filter);
+  }
 
-        final earning = earnings[index];
-        return EarningItemTile(
-          earning: earning,
-          onTap: () => _showEarningDetails(context, earning),
-        );
-      },
+  Widget _buildLoadingState() {
+    return const Padding(
+      padding: EdgeInsets.all(64),
+      child: Center(
+        child: CircularProgressIndicator(),
+      ),
     );
   }
 
   Widget _buildEmptyState() {
-    return Center(
+    return Padding(
+      padding: const EdgeInsets.all(32),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -164,9 +220,13 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen>
             color: AppColors.textSecondary.withOpacity(0.5),
           ),
           const SizedBox(height: 16),
-          const Text(
-            'No Earnings Yet',
-            style: TextStyle(
+          Text(
+            _selectedFilter == 'active' 
+                ? 'No Active Assignments'
+                : _selectedFilter == 'completed'
+                    ? 'No Completed Assignments'
+                    : 'No Earnings Yet',
+            style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
               color: AppColors.textSecondary,
@@ -174,7 +234,11 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen>
           ),
           const SizedBox(height: 8),
           Text(
-            'Join campaigns and start earning!',
+            _selectedFilter == 'active' 
+                ? 'You currently have no active geofence assignments.'
+                : _selectedFilter == 'completed'
+                    ? 'You haven\'t completed any assignments yet.'
+                    : 'Join campaigns and start earning!',
             style: TextStyle(
               fontSize: 14,
               color: AppColors.textSecondary.withOpacity(0.7),
@@ -182,21 +246,22 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen>
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pushReplacementNamed('/campaigns'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+          if (_selectedFilter != 'completed')
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pushReplacementNamed('/campaigns'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+              ),
+              child: const Text('Browse Campaigns'),
             ),
-            child: const Text('Browse Campaigns'),
-          ),
         ],
       ),
     );
   }
 
-  void _showEarningDetails(BuildContext context, Earning earning) {
+  void _showAssignmentDetails(BuildContext context, CampaignEarnings assignment) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -228,19 +293,34 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen>
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  earning.earningTypeDisplayName,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        assignment.campaignTitle,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        assignment.geofenceName,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 Text(
-                  earning.formattedAmount,
-                  style: TextStyle(
+                  assignment.formattedTotalEarnings,
+                  style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
-                    color: earning.isPaid ? AppColors.success : AppColors.warning,
+                    color: AppColors.primary,
                   ),
                 ),
               ],
@@ -248,44 +328,72 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen>
             const SizedBox(height: 16),
             
             // Details
-            _buildDetailRow('Campaign', earning.campaignTitle),
-            _buildDetailRow('Status', earning.statusDisplayName),
-            _buildDetailRow('Period', 
-              '${earning.periodStart.day}/${earning.periodStart.month} - ${earning.periodEnd.day}/${earning.periodEnd.month}'
-            ),
-            if (earning.hoursWorked != null)
-              _buildDetailRow('Hours Worked', '${earning.hoursWorked!.toStringAsFixed(1)}h'),
-            if (earning.verificationsCompleted != null)
-              _buildDetailRow('Verifications', '${earning.verificationsCompleted}'),
-            if (earning.paidAt != null)
-              _buildDetailRow('Paid On', '${earning.paidAt!.day}/${earning.paidAt!.month}/${earning.paidAt!.year}'),
-            if (earning.notes != null && earning.notes!.isNotEmpty)
-              _buildDetailRow('Notes', earning.notes!),
+            _buildDetailRow('Status', assignment.statusDisplay),
+            _buildDetailRow('Rate', assignment.rateDisplay),
+            _buildDetailRow('Time Worked', assignment.formattedTimeWorked),
+            _buildDetailRow('Distance', assignment.formattedDistance),
+            _buildDetailRow('Verifications', '${assignment.verificationsCompleted}'),
+            _buildDetailRow('Joined', _formatDate(assignment.assignmentStartDate)),
+            if (assignment.assignmentEndDate != null)
+              _buildDetailRow('Left', _formatDate(assignment.assignmentEndDate!)),
+            _buildDetailRow('Pending', assignment.formattedPendingAmount),
+            _buildDetailRow('Paid', '₦${assignment.paidAmount.toStringAsFixed(2)}'),
             
             const SizedBox(height: 24),
             
             // Actions
-            if (earning.isPending) ...[
+            if (assignment.isCurrentlyActive) ...[
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
                     Navigator.pop(context);
-                    // Report issue with earning
-                    _showReportIssueDialog(context, earning);
+                    Navigator.of(context).pushNamed('/campaign-detail', arguments: assignment.campaignId);
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.error,
+                    backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
                   ),
-                  child: const Text('Report Issue'),
+                  child: const Text('View Campaign'),
                 ),
+              ),
+            ] else ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _showReportIssueDialog(context, assignment);
+                      },
+                      child: const Text('Report Issue'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Navigator.of(context).pushNamed('/campaign-detail', arguments: assignment.campaignId);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('View Campaign'),
+                    ),
+                  ),
+                ],
               ),
             ],
           ],
         ),
       ),
     );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year.toString().substring(2)}';
   }
 
   Widget _buildDetailRow(String label, String value) {
@@ -321,12 +429,12 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen>
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => PaymentRequestBottomSheet(
-        availableAmount: ref.read(totalPendingAmountProvider),
+        availableAmount: ref.read(earningsOverviewProvider)?.pendingEarnings ?? 0.0,
       ),
     );
   }
 
-  void _showReportIssueDialog(BuildContext context, Earning earning) {
+  void _showReportIssueDialog(BuildContext context, CampaignEarnings assignment) {
     final TextEditingController descriptionController = TextEditingController();
     String selectedIssueType = 'incorrect_amount';
 

@@ -70,6 +70,10 @@ enum GeofenceAssignmentStatus {
 @JsonSerializable()
 class GeofenceAssignment {
   @HiveField(0)
+  @JsonKey(name: 'id')
+  final String id;  // Assignment ID for tracking
+  
+  @HiveField(27)  // Use unused field number after 26
   @JsonKey(name: 'geofence_id')
   final String geofenceId;
   
@@ -178,6 +182,7 @@ class GeofenceAssignment {
   final bool? isActiveFromBackend;
 
   const GeofenceAssignment({
+    required this.id,
     required this.geofenceId,
     required this.geofenceName,
     required this.status,
@@ -210,8 +215,33 @@ class GeofenceAssignment {
 
   factory GeofenceAssignment.fromJson(Map<String, dynamic> json) => _$GeofenceAssignmentFromJson(json);
   Map<String, dynamic> toJson() => _$GeofenceAssignmentToJson(this);
+  
+  // Helper to create a Geofence-like object for compatibility
+  GeofenceData? get geofence => GeofenceData(
+    id: geofenceId,
+    name: geofenceName,
+    rateType: _determineRateType(),
+    ratePerKm: ratePerKm,
+    ratePerHour: ratePerHour,
+    fixedDailyRate: fixedDailyRate,
+  );
+  
+  String _determineRateType() {
+    if (ratePerHour != null && ratePerHour! > 0) {
+      if (ratePerKm != null && ratePerKm! > 0) {
+        return 'hybrid';
+      }
+      return 'per_hour';
+    } else if (ratePerKm != null && ratePerKm! > 0) {
+      return 'per_km';
+    } else if (fixedDailyRate != null && fixedDailyRate! > 0) {
+      return 'fixed_daily';
+    }
+    return 'per_km';  // fallback
+  }
 
   GeofenceAssignment copyWith({
+    String? id,
     String? geofenceId,
     String? geofenceName,
     GeofenceAssignmentStatus? status,
@@ -241,6 +271,7 @@ class GeofenceAssignment {
     bool? isActiveFromBackend,
   }) {
     return GeofenceAssignment(
+      id: id ?? this.id,
       geofenceId: geofenceId ?? this.geofenceId,
       geofenceName: geofenceName ?? this.geofenceName,
       status: status ?? this.status,
@@ -273,6 +304,25 @@ class GeofenceAssignment {
 
   bool get isActive => status == GeofenceAssignmentStatus.active;
   bool get isAssigned => status == GeofenceAssignmentStatus.assigned;
+}
+
+// Helper class for geofence data compatibility
+class GeofenceData {
+  final String? id;
+  final String name;
+  final String rateType;
+  final double? ratePerKm;
+  final double? ratePerHour;
+  final double? fixedDailyRate;
+  
+  const GeofenceData({
+    this.id,
+    required this.name,
+    required this.rateType,
+    this.ratePerKm,
+    this.ratePerHour,
+    this.fixedDailyRate,
+  });
 }
 
 @HiveType(typeId: 28)

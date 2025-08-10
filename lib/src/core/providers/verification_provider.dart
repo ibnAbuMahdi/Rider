@@ -356,6 +356,34 @@ class VerificationNotifier extends StateNotifier<VerificationState> {
       return false;
     }
   }
+
+  /// Send urgent verification alert for current request
+  Future<void> sendUrgentAlert() async {
+    if (state.currentRequest != null) {
+      await _verificationService.sendUrgentVerificationAlert(state.currentRequest!);
+    }
+  }
+
+  /// Send timeout warning for current request
+  Future<void> sendTimeoutWarning() async {
+    if (state.currentRequest != null) {
+      await _verificationService.sendTimeoutWarning(state.currentRequest!);
+    }
+  }
+
+  /// Check if current request needs urgent alert (less than 5 minutes remaining)
+  bool get needsUrgentAlert {
+    if (state.currentRequest == null) return false;
+    final remainingMinutes = state.currentRequest!.remainingTimeInMinutes ?? 0;
+    return remainingMinutes > 0 && remainingMinutes <= 5;
+  }
+
+  /// Check if current request needs timeout warning (less than 2 minutes remaining)
+  bool get needsTimeoutWarning {
+    if (state.currentRequest == null) return false;
+    final remainingMinutes = state.currentRequest!.remainingTimeInMinutes ?? 0;
+    return remainingMinutes > 0 && remainingMinutes <= 2;
+  }
 }
 
 // Providers

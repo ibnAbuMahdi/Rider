@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import '../models/earning.dart';
 import '../models/payment_summary.dart';
+import '../models/campaign_earnings.dart';
+import '../models/location_record.dart'; // For EarningsRecord
 import 'api_service.dart';
 import 'location_api_service.dart';
 
@@ -712,6 +714,447 @@ class EarningsService {
         'success_count': 0,
         'failure_count': mobileEarnings.length,
       };
+    }
+  }
+
+  // Enhanced methods for new earnings section design
+
+  /// Get comprehensive earnings overview with analytics
+  Future<EarningsOverview?> getEarningsOverview() async {
+    try {
+      final response = await _apiService.get('/rider/earnings-overview/');
+
+      if (response.statusCode == 200) {
+        return EarningsOverview.fromJson(response.data);
+      }
+
+      return null;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to get earnings overview: $e');
+      }
+      return null;
+    }
+  }
+
+  /// Get campaign earnings summaries (grouped by campaign)
+  Future<List<CampaignSummary>?> getCampaignSummaries() async {
+    try {
+      final response = await _apiService.get('/rider/campaign-summaries/');
+
+      if (response.statusCode == 200) {
+        final List<dynamic> campaignsJson = response.data['results'] ?? response.data;
+        return campaignsJson
+            .map((json) => CampaignSummary.fromJson(json))
+            .toList();
+      }
+
+      return null;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to get campaign summaries: $e');
+      }
+      return null;
+    }
+  }
+
+  /// Get geofence assignment earnings (individual assignments)
+  Future<List<CampaignEarnings>?> getGeofenceAssignmentEarnings({
+    String? campaignId,
+    String? geofenceId,
+    String? status,
+    int page = 1,
+    int limit = 20,
+  }) async {
+    try {
+      final queryParams = <String, dynamic>{
+        'page': page,
+        'limit': limit,
+      };
+
+      if (campaignId != null) queryParams['campaign_id'] = campaignId;
+      if (geofenceId != null) queryParams['geofence_id'] = geofenceId;
+      if (status != null) queryParams['status'] = status;
+
+      final response = await _apiService.get('/rider/geofence-assignment-earnings/', queryParameters: queryParams);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> assignmentsJson = response.data['results'] ?? response.data;
+        return assignmentsJson
+            .map((json) => CampaignEarnings.fromJson(json))
+            .toList();
+      }
+
+      return null;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to get geofence assignment earnings: $e');
+      }
+      return null;
+    }
+  }
+
+  /// Get detailed campaign earnings with geofence breakdown
+  Future<Map<String, dynamic>?> getCampaignEarningsDetail(String campaignId) async {
+    try {
+      final response = await _apiService.get('/rider/campaigns/$campaignId/earnings-detail/');
+
+      if (response.statusCode == 200) {
+        final data = response.data;
+        return {
+          'campaign_earnings': CampaignEarnings.fromJson(data['campaign']),
+          'recent_earnings': (data['recent_earnings'] as List?)
+              ?.map((json) => Earning.fromJson(json))
+              .toList() ?? [],
+          'geofence_breakdown': data['geofence_breakdown'] ?? {},
+          'weekly_trend': data['weekly_trend'] ?? [],
+          'monthly_stats': data['monthly_stats'] ?? {},
+          'performance_metrics': data['performance_metrics'] ?? {},
+        };
+      }
+
+      return null;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to get campaign earnings detail: $e');
+      }
+      return null;
+    }
+  }
+
+  /// Get earnings trends and analytics
+  Future<Map<String, dynamic>?> getEarningsTrends({
+    String period = 'month',
+    int limit = 30,
+  }) async {
+    try {
+      final response = await _apiService.get('/rider/earnings-trends/', queryParameters: {
+        'period': period,
+        'limit': limit,
+      });
+
+      if (response.statusCode == 200) {
+        final data = response.data;
+        return {
+          'daily_trends': data['daily_trends'] ?? [],
+          'weekly_trends': data['weekly_trends'] ?? [],
+          'monthly_trends': data['monthly_trends'] ?? [],
+          'growth_rates': data['growth_rates'] ?? {},
+          'peak_earning_times': data['peak_earning_times'] ?? {},
+          'top_performing_campaigns': data['top_performing_campaigns'] ?? [],
+          'earnings_goals': data['earnings_goals'] ?? {},
+          'projections': data['projections'] ?? {},
+        };
+      }
+
+      return null;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to get earnings trends: $e');
+      }
+      return null;
+    }
+  }
+
+  /// Get earnings summary for dashboard cards
+  Future<Map<String, dynamic>?> getEarningsSummaryForCards() async {
+    try {
+      // Get both overview and campaign summaries in parallel
+      final results = await Future.wait([
+        getEarningsOverview(),
+        getCampaignSummaries(),
+        getGeofenceAssignmentEarnings(status: 'active', limit: 5), // Recent active assignments
+      ]);
+
+      final overview = results[0] as EarningsOverview?;
+      final campaignSummaries = results[1] as List<CampaignSummary>?;
+      final activeAssignments = results[2] as List<CampaignEarnings>?;
+
+      if (overview != null) {
+        return {
+          'overview': overview,
+          'campaign_summaries': campaignSummaries ?? [],
+          'active_assignments': activeAssignments ?? [],
+          'has_data': campaignSummaries?.isNotEmpty ?? false,
+          'needs_refresh': overview.updatedAt.isBefore(
+            DateTime.now().subtract(const Duration(hours: 1))
+          ),
+        };
+      }
+
+      return null;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to get earnings summary for cards: $e');
+      }
+      return null;
+    }
+  }
+
+  /// Search earnings by campaign or geofence
+  Future<List<Earning>?> searchEarnings({
+    String? query,
+    String? campaignId,
+    String? geofenceId,
+    DateTime? startDate,
+    DateTime? endDate,
+    int page = 1,
+    int limit = 20,
+  }) async {
+    try {
+      final queryParams = <String, dynamic>{
+        'page': page,
+        'limit': limit,
+      };
+
+      if (query != null && query.isNotEmpty) queryParams['search'] = query;
+      if (campaignId != null) queryParams['campaign_id'] = campaignId;
+      if (geofenceId != null) queryParams['geofence_id'] = geofenceId;
+      if (startDate != null) queryParams['start_date'] = startDate.toIso8601String();
+      if (endDate != null) queryParams['end_date'] = endDate.toIso8601String();
+
+      final response = await _apiService.get('/rider/earnings/search/', queryParameters: queryParams);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> earningsJson = response.data['results'] ?? response.data;
+        return earningsJson.map((json) => Earning.fromJson(json)).toList();
+      }
+
+      return null;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to search earnings: $e');
+      }
+      return null;
+    }
+  }
+
+  /// Get earnings statistics for a specific period
+  Future<Map<String, dynamic>?> getEarningsStats({
+    DateTime? startDate,
+    DateTime? endDate,
+    String groupBy = 'day', // 'day', 'week', 'month'
+  }) async {
+    try {
+      final queryParams = <String, dynamic>{
+        'group_by': groupBy,
+      };
+
+      if (startDate != null) queryParams['start_date'] = startDate.toIso8601String();
+      if (endDate != null) queryParams['end_date'] = endDate.toIso8601String();
+
+      final response = await _apiService.get('/rider/earnings-stats/', queryParameters: queryParams);
+
+      if (response.statusCode == 200) {
+        return response.data;
+      }
+
+      return null;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to get earnings stats: $e');
+      }
+      return null;
+    }
+  }
+
+  /// Export earnings data
+  Future<Map<String, dynamic>?> exportEarningsData({
+    DateTime? startDate,
+    DateTime? endDate,
+    String format = 'csv', // 'csv', 'pdf', 'excel'
+    List<String>? includeFields,
+  }) async {
+    try {
+      final queryParams = <String, dynamic>{
+        'format': format,
+      };
+
+      if (startDate != null) queryParams['start_date'] = startDate.toIso8601String();
+      if (endDate != null) queryParams['end_date'] = endDate.toIso8601String();
+      if (includeFields != null) queryParams['fields'] = includeFields.join(',');
+
+      final response = await _apiService.get('/rider/earnings/export/', queryParameters: queryParams);
+
+      if (response.statusCode == 200) {
+        return {
+          'download_url': response.data['download_url'],
+          'file_name': response.data['file_name'],
+          'expires_at': response.data['expires_at'],
+          'file_size': response.data['file_size'],
+        };
+      }
+
+      return null;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to export earnings data: $e');
+      }
+      return null;
+    }
+  }
+
+  /// Get earnings goals and progress
+  Future<Map<String, dynamic>?> getEarningsGoals() async {
+    try {
+      final response = await _apiService.get('/rider/earnings-goals/');
+
+      if (response.statusCode == 200) {
+        return response.data;
+      }
+
+      return null;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to get earnings goals: $e');
+      }
+      return null;
+    }
+  }
+
+  /// Set earnings goal
+  Future<bool> setEarningsGoal({
+    required double amount,
+    required String period, // 'weekly', 'monthly', 'yearly'
+    String? description,
+  }) async {
+    try {
+      final response = await _apiService.post('/rider/earnings-goals/', data: {
+        'amount': amount,
+        'period': period,
+        'description': description,
+      });
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        if (kDebugMode) {
+          print('🎯 Earnings goal set successfully');
+        }
+        return true;
+      }
+
+      return false;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to set earnings goal: $e');
+      }
+      return false;
+    }
+  }
+
+  /// Submit hourly tracking window to backend for earnings calculation
+  Future<Map<String, dynamic>?> submitHourlyEarnings(EarningsRecord earningsRecord) async {
+    try {
+      final windowData = earningsRecord.metadata!;
+      
+      // Prepare tracking data from metadata
+      final trackingData = {
+        'samples': [], // Will be populated from stored tracking data
+        'failure_events': [],
+        'effective_minutes': windowData['effective_minutes'],
+        'tracking_quality': windowData['tracking_quality'],
+      };
+
+      final requestData = {
+        'window_id': earningsRecord.id,
+        'geofence_id': windowData['geofence_id'],
+        'window_start': windowData['window_start'],
+        'tracking_data': trackingData,
+      };
+
+      final response = await _apiService.post('/tracking/hourly-tracking-window/', data: requestData);
+
+      if (response.statusCode == 201) {
+        final data = response.data;
+        
+        if (kDebugMode) {
+          print('⏰ Hourly earnings submitted successfully: ₦${data['calculated_amount']}');
+          print('⏰ Backend validation: ${data['backend_calculation']}');
+        }
+
+        return {
+          'success': data['success'],
+          'calculated_amount': data['calculated_amount'],
+          'effective_minutes': data['effective_minutes'],
+          'tracking_quality': data['tracking_quality'],
+          'backend_calculation': data['backend_calculation'],
+          'earnings_calculation_id': data['earnings_calculation_id'],
+        };
+      }
+
+      if (kDebugMode) {
+        print('❌ Failed to submit hourly earnings: ${response.statusCode}');
+      }
+      return null;
+
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to submit hourly earnings: $e');
+      }
+      return null;
+    }
+  }
+
+  /// Submit hourly tracking window with full location samples and assignment attribution
+  Future<Map<String, dynamic>?> submitHourlyTrackingWindow({
+    required String windowId,
+    required String geofenceId,
+    String? assignmentId,  // Add assignment ID for proper earnings attribution
+    required DateTime windowStart,
+    required List<Map<String, dynamic>> locationSamples,
+    required List<Map<String, dynamic>> failureEvents,
+    required double effectiveMinutes,
+    required double trackingQuality,
+  }) async {
+    try {
+      final requestData = {
+        'window_id': windowId,
+        'geofence_id': geofenceId,
+        'window_start': windowStart.toIso8601String(),
+        'tracking_data': {
+          'samples': locationSamples,
+          'failure_events': failureEvents,
+          'effective_minutes': effectiveMinutes,
+          'tracking_quality': trackingQuality,
+        },
+      };
+      
+      // Add assignment ID for proper earnings attribution
+      if (assignmentId != null) {
+        requestData['assignment_id'] = assignmentId;
+      }
+
+      final response = await _apiService.post('/tracking/hourly-tracking-window/', data: requestData);
+
+      if (response.statusCode == 201) {
+        final data = response.data;
+        
+        if (kDebugMode) {
+          print('⏰ Hourly tracking window submitted: ${data['status']}');
+          print('⏰ Calculated earnings: ₦${data['calculated_amount']}');
+          print('⏰ Effective time: ${data['effective_minutes']} minutes');
+          
+          final backendCalc = data['backend_calculation'];
+          print('⏰ Backend validation:');
+          print('  - Rate: ₦${backendCalc['hourly_rate']}/hour');
+          print('  - Billable: ${backendCalc['billable_minutes']} minutes');
+          print('  - Working hours valid: ${backendCalc['working_hours_valid']}');
+          print('  - Minimum time met: ${backendCalc['minimum_time_met']}');
+          print('  - Minimum samples met: ${backendCalc['minimum_samples_met']}');
+        }
+
+        return data;
+      }
+
+      if (kDebugMode) {
+        print('❌ Failed to submit hourly tracking window: ${response.statusCode} - ${response.data}');
+      }
+      return null;
+
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to submit hourly tracking window: $e');
+      }
+      return null;
     }
   }
 }

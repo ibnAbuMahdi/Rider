@@ -17,7 +17,8 @@ class GeofenceAssignmentAdapter extends TypeAdapter<GeofenceAssignment> {
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
     return GeofenceAssignment(
-      geofenceId: fields[0] as String,
+      id: fields[0] as String,
+      geofenceId: fields[27] as String,
       geofenceName: fields[1] as String,
       status: fields[2] as GeofenceAssignmentStatus,
       startedAt: fields[3] as DateTime?,
@@ -50,8 +51,10 @@ class GeofenceAssignmentAdapter extends TypeAdapter<GeofenceAssignment> {
   @override
   void write(BinaryWriter writer, GeofenceAssignment obj) {
     writer
-      ..writeByte(27)
+      ..writeByte(28)
       ..writeByte(0)
+      ..write(obj.id)
+      ..writeByte(27)
       ..write(obj.geofenceId)
       ..writeByte(1)
       ..write(obj.geofenceName)
@@ -686,6 +689,7 @@ class GeofenceShapeAdapter extends TypeAdapter<GeofenceShape> {
 
 GeofenceAssignment _$GeofenceAssignmentFromJson(Map<String, dynamic> json) =>
     GeofenceAssignment(
+      id: json['id'] as String,
       geofenceId: json['geofence_id'] as String,
       geofenceName: json['geofence_name'] as String,
       status: $enumDecode(_$GeofenceAssignmentStatusEnumMap, json['status']),
@@ -721,6 +725,7 @@ GeofenceAssignment _$GeofenceAssignmentFromJson(Map<String, dynamic> json) =>
 
 Map<String, dynamic> _$GeofenceAssignmentToJson(GeofenceAssignment instance) =>
     <String, dynamic>{
+      'id': instance.id,
       'geofence_id': instance.geofenceId,
       'geofence_name': instance.geofenceName,
       'status': _$GeofenceAssignmentStatusEnumMap[instance.status]!,

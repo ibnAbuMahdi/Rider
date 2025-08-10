@@ -166,6 +166,17 @@ class VerificationRequest {
 
   bool get hasImage => imageUrl != null || localImagePath != null;
 
+  // Helper getters for timeout and remaining time calculations
+  int get timeoutInMinutes {
+    final timeoutDuration = deadline.difference(createdAt);
+    return timeoutDuration.inMinutes;
+  }
+  
+  int get remainingTimeInMinutes {
+    final remaining = timeRemaining;
+    return remaining.inMinutes;
+  }
+
   String get statusDisplayText {
     switch (status) {
       case VerificationStatus.pending:

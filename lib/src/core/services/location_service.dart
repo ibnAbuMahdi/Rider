@@ -8,6 +8,7 @@ import '../storage/hive_service.dart';
 import '../models/location_record.dart';
 import '../models/campaign.dart';
 import 'notification_service.dart';
+import 'hourly_tracking_service.dart';
 
 class LocationService {
   static LocationService? _instance;
@@ -34,6 +35,9 @@ class LocationService {
   
   // Callback to update the location provider when new position is received
   Function(Position)? _positionUpdateCallback;
+  
+  // Hourly tracking service for per_hour rate types
+  final HourlyTrackingService _hourlyTrackingService = HourlyTrackingService.instance;
   
   // Set the callback to update location provider state
   void setPositionUpdateCallback(Function(Position) callback) {
@@ -88,9 +92,10 @@ class LocationService {
   // Multi-geofence tracking
   String? _currentGeofenceId;
   Geofence? _currentGeofence;
+  String? _currentAssignmentId; // Track current active assignment
   List<GeofenceAssignment> _geofenceAssignments = []; // Track assigned geofences
-  final Map<String, double> _geofenceDistances = {}; // Track distance per geofence
-  final Map<String, double> _geofenceEarnings = {}; // Track earnings per geofence
+  final Map<String, double> _geofenceDistances = {}; // Track distance per geofence (for hybrid rates)
+  final Map<String, double> _assignmentEarnings = {}; // Track earnings per assignment (UX consistency)
   final Map<String, DateTime> _geofenceEntryTimes = {}; // Track time spent in each geofence
   final Map<String, Duration> _geofenceDurations = {}; // Total time per geofence
 
@@ -134,9 +139,10 @@ class LocationService {
           print('📍 Connectivity changed: ${_isOnline ? 'online' : 'offline'} ($result)');
         }
         
-        // If we just came online, try to sync stored locations
+        // If we just came online, try to sync stored locations and hourly windows
         if (!wasOnline && _isOnline) {
           _syncStoredLocations();
+          _syncPendingHourlyWindows();
         }
       });
     } catch (e) {
@@ -416,10 +422,14 @@ class LocationService {
       // Reset geofence tracking data
       _currentGeofenceId = null;
       _currentGeofence = null;
+      _currentAssignmentId = null;
       _geofenceDistances.clear();
-      _geofenceEarnings.clear();
+      _assignmentEarnings.clear();
       _geofenceEntryTimes.clear();
       _geofenceDurations.clear();
+      
+      // Check for per_hour rate types and start hourly tracking if needed
+      await _startHourlyTrackingIfNeeded();
 
       // Enhanced location settings optimized for background tracking  
       const locationSettings = LocationSettings(
@@ -531,6 +541,14 @@ class LocationService {
       _periodicLocationTimer?.cancel();
       _periodicLocationTimer = null;
       
+      // Stop hourly tracking if it was started
+      if (_hourlyTrackingService.isTracking) {
+        await _hourlyTrackingService.stopHourlyTracking();
+        if (kDebugMode) {
+          print('📍 Stopped hourly tracking service');
+        }
+      }
+      
       _isTracking = false;
       _activeCampaignId = null;
       _activeCampaign = null;
@@ -540,14 +558,18 @@ class LocationService {
       // Clear multi-geofence tracking data
       _currentGeofenceId = null;
       _currentGeofence = null;
+      _currentAssignmentId = null;
       _geofenceDistances.clear();
-      _geofenceEarnings.clear();
+      _assignmentEarnings.clear();
       _geofenceEntryTimes.clear();
       _geofenceDurations.clear();
       
-      // Try to sync any remaining unsynced locations
-      if (_unsyncedLocations.isNotEmpty && _isOnline) {
-        await _syncStoredLocations();
+      // Try to sync any remaining unsynced locations and hourly windows
+      if (_isOnline) {
+        if (_unsyncedLocations.isNotEmpty) {
+          await _syncStoredLocations();
+        }
+        await _syncPendingHourlyWindows();
       }
       
       if (kDebugMode) {
@@ -735,6 +757,30 @@ class LocationService {
     } catch (e) {
       if (kDebugMode) {
         print('❌ Failed to sync locations: $e');
+      }
+    }
+  }
+  
+  /// Sync pending hourly tracking windows when online
+  Future<void> _syncPendingHourlyWindows() async {
+    if (!_isOnline) return;
+    
+    try {
+      final pendingCount = _hourlyTrackingService.pendingSyncWindowsCount;
+      if (pendingCount > 0) {
+        if (kDebugMode) {
+          print('📍 Syncing $pendingCount pending hourly tracking windows...');
+        }
+        
+        await _hourlyTrackingService.syncPendingWindows();
+        
+        if (kDebugMode) {
+          print('📍 Hourly window sync completed');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to sync hourly windows: $e');
       }
     }
   }
@@ -981,7 +1027,7 @@ class LocationService {
     _wasInsideGeofence = isInsideAnyGeofence;
   }
 
-  // Handle rider entering geofence - enhanced for specific geofence tracking
+  // Handle rider entering geofence - enhanced for assignment-based tracking
   void _onGeofenceEnter(String geofenceId, Geofence geofence) {
     if (kDebugMode) {
       print('✅ Rider entered geofence: ${geofence.name} (ID: $geofenceId)');
@@ -989,23 +1035,46 @@ class LocationService {
       print('✅ Rate per km: ${geofence.ratePerKm}, Rate per hour: ${geofence.ratePerHour}');
     }
 
+    // Find active assignment for this geofence
+    final assignment = _geofenceAssignments.firstWhere(
+      (a) => a.geofence?.id == geofenceId && a.status == GeofenceAssignmentStatus.active,
+      orElse: () => throw Exception('No active assignment found for geofence $geofenceId'),
+    );
+    
+    // Update current assignment ID for tracking
+    _currentAssignmentId = assignment.id;
+    
     // Record entry time for this geofence
     _geofenceEntryTimes[geofenceId] = DateTime.now();
     
     // Initialize tracking data for this geofence if not exists
     _geofenceDistances[geofenceId] ??= 0.0;
-    _geofenceEarnings[geofenceId] ??= 0.0;
+    _assignmentEarnings[assignment.id] ??= 0.0; // Track earnings per assignment
     _geofenceDurations[geofenceId] ??= Duration.zero;
 
     // Store geofence event
-    _recordGeofenceEvent('enter', geofenceId: geofenceId, geofenceName: geofence.name);
+    _recordGeofenceEvent('enter', geofenceId: geofenceId, geofenceName: geofence.name, assignmentId: assignment.id);
   }
 
-  // Handle rider leaving geofence - enhanced for specific geofence tracking
+  // Handle rider leaving geofence - enhanced for assignment-based tracking
   void _onGeofenceExit(String geofenceId, Geofence? geofence) {
     if (kDebugMode) {
       print('⚠️ Rider left geofence: ${geofence?.name ?? 'Unknown'} (ID: $geofenceId)');
     }
+
+    // Find assignment for this geofence
+    final assignment = _geofenceAssignments.firstWhere(
+      (a) => a.geofenceId == geofenceId,
+      orElse: () => GeofenceAssignment(
+        id: 'unknown',
+        geofenceId: geofenceId,
+        geofenceName: 'Unknown',
+        status: GeofenceAssignmentStatus.cancelled,
+        centerLatitude: 0.0,
+        centerLongitude: 0.0,
+        radiusMeters: 0,
+      ),
+    );
 
     // Calculate time spent in this geofence
     if (_geofenceEntryTimes.containsKey(geofenceId)) {
@@ -1023,12 +1092,17 @@ class LocationService {
       }
       
       // Update earnings based on time if geofence uses hourly or hybrid rates
-      if (geofence != null) {
-        _updateGeofenceEarningsForTime(geofenceId, geofence, timeSpent);
+      if (geofence != null && assignment.id != 'unknown') {
+        _updateAssignmentEarningsForTime(assignment.id, geofence, timeSpent);
       }
       
       // Remove entry time
       _geofenceEntryTimes.remove(geofenceId);
+    }
+
+    // Clear current assignment when exiting
+    if (_currentAssignmentId == assignment.id) {
+      _currentAssignmentId = null;
     }
 
     // Show notification about leaving geofence
@@ -1040,11 +1114,11 @@ class LocationService {
     }
 
     // Store geofence event
-    _recordGeofenceEvent('exit', geofenceId: geofenceId, geofenceName: geofence?.name);
+    _recordGeofenceEvent('exit', geofenceId: geofenceId, geofenceName: geofence?.name, assignmentId: assignment.id);
   }
 
-  // Record geofence events for tracking compliance - enhanced for specific geofences
-  void _recordGeofenceEvent(String eventType, {String? geofenceId, String? geofenceName}) {
+  // Record geofence events for tracking compliance - enhanced for assignment-based tracking
+  void _recordGeofenceEvent(String eventType, {String? geofenceId, String? geofenceName, String? assignmentId}) {
     if (_lastPosition == null || _activeCampaign == null) return;
 
     try {
@@ -1053,12 +1127,13 @@ class LocationService {
         'campaign_id': _activeCampaign!.id,
         'geofence_id': geofenceId,
         'geofence_name': geofenceName,
+        'assignment_id': assignmentId, // Track assignment for earnings attribution
         'latitude': _lastPosition!.latitude,
         'longitude': _lastPosition!.longitude,
         'timestamp': DateTime.now().toIso8601String(),
         'accuracy': _lastPosition!.accuracy,
         'distance_in_geofence': geofenceId != null ? _geofenceDistances[geofenceId] : null,
-        'earnings_from_geofence': geofenceId != null ? _geofenceEarnings[geofenceId] : null,
+        'earnings_from_assignment': assignmentId != null ? _assignmentEarnings[assignmentId] : null, // Assignment-based earnings
       };
 
       // Store in local storage for sync
@@ -1073,7 +1148,7 @@ class LocationService {
       HiveService.saveSetting('geofence_events', events);
 
       if (kDebugMode) {
-        print('📍 Geofence event recorded: $eventType for ${geofenceName ?? "unknown geofence"}');
+        print('📍 Geofence event recorded: $eventType for ${geofenceName ?? "unknown geofence"} (Assignment: ${assignmentId ?? "unknown"})');
       }
     } catch (e) {
       if (kDebugMode) {
@@ -1131,14 +1206,17 @@ class LocationService {
   Geofence? get currentGeofence => _currentGeofence;
   String? get currentGeofenceId => _currentGeofenceId;
   
-  // Get geofence-specific tracking data
+  // Get geofence-specific tracking data  
   Map<String, double> get geofenceDistances => Map.unmodifiable(_geofenceDistances);
-  Map<String, double> get geofenceEarnings => Map.unmodifiable(_geofenceEarnings);
+  Map<String, double> get geofenceEarnings => Map.unmodifiable(_assignmentEarnings); // For UI compatibility
   Map<String, Duration> get geofenceDurations => Map.unmodifiable(_geofenceDurations);
   
-  // Get total earnings across all geofences
+  // Get assignment-specific tracking data
+  Map<String, double> get assignmentEarnings => Map.unmodifiable(_assignmentEarnings);
+  
+  // Get total earnings across all assignments (consistent with earnings history)
   double get totalGeofenceEarnings {
-    return _geofenceEarnings.values.fold(0.0, (sum, earnings) => sum + earnings);
+    return _assignmentEarnings.values.fold(0.0, (sum, earnings) => sum + earnings);
   }
 
   // Update geofence assignments during runtime (called when getMyCampaigns() detects changes)
@@ -1148,6 +1226,9 @@ class LocationService {
     }
     
     _geofenceAssignments = newAssignments;
+    
+    // Update hourly tracking based on new assignments
+    await _updateHourlyTrackingForAssignments();
     
     // If we're tracking and now have assignments, start monitoring
     if (_isTracking && _geofenceAssignments.isNotEmpty) {
@@ -1342,7 +1423,7 @@ class LocationService {
     return 'Outside all active geofences (${activeAssignments.length} active assignments)';
   }
   
-  // Update earnings for a specific geofence based on distance
+  // Update earnings for a specific geofence based on distance - assignment-based
   void _updateGeofenceEarnings(String geofenceId, double distanceMeters) {
     // In debug mode, find geofence if _currentGeofence is null
     Geofence? geofence = _currentGeofence;
@@ -1352,11 +1433,17 @@ class LocationService {
     
     if (geofence == null) return;
     
+    // Find assignment for this geofence to track earnings per assignment
+    final assignment = _geofenceAssignments.firstWhere(
+      (a) => a.geofence?.id == geofenceId && a.status == GeofenceAssignmentStatus.active,
+      orElse: () => throw Exception('No active assignment found for geofence $geofenceId'),
+    );
+    
     final distanceKm = distanceMeters / 1000.0;
     double additionalEarnings = 0.0;
     
     if (kDebugMode) {
-      print('💰 EARNINGS UPDATE: Geofence ${geofence.name}');
+      print('💰 EARNINGS UPDATE: Geofence ${geofence.name} (Assignment: ${assignment.id})');
       print('💰   Rate Type: ${geofence.rateType}');
       print('💰   Rate Per Km: ${geofence.ratePerKm}');
       print('💰   Distance: ${distanceKm.toStringAsFixed(4)} km (${distanceMeters.toStringAsFixed(2)}m)');
@@ -1380,18 +1467,19 @@ class LocationService {
         break;
     }
     
-    _geofenceEarnings[geofenceId] = 
-        (_geofenceEarnings[geofenceId] ?? 0.0) + additionalEarnings;
+    // Track earnings per assignment for UX consistency with earnings history
+    _assignmentEarnings[assignment.id] = 
+        (_assignmentEarnings[assignment.id] ?? 0.0) + additionalEarnings;
     
     if (kDebugMode) {
       print('💰   Additional Earnings: ₦${additionalEarnings.toStringAsFixed(4)}');
-      print('💰   Total Geofence Earnings: ₦${_geofenceEarnings[geofenceId]!.toStringAsFixed(4)}');
-      print('💰   Total All Geofences: ₦${totalGeofenceEarnings.toStringAsFixed(4)}');
+      print('💰   Assignment Total: ₦${_assignmentEarnings[assignment.id]!.toStringAsFixed(4)}');
+      print('💰   Total All Assignments: ₦${totalGeofenceEarnings.toStringAsFixed(4)}');
     }
   }
   
-  // Update earnings for time-based rates when exiting geofence
-  void _updateGeofenceEarningsForTime(String geofenceId, Geofence geofence, Duration timeSpent) {
+  // Update earnings for time-based rates when exiting geofence - assignment-based
+  void _updateAssignmentEarningsForTime(String assignmentId, Geofence geofence, Duration timeSpent) {
     double additionalEarnings = 0.0;
     final hoursSpent = timeSpent.inMilliseconds / (1000 * 60 * 60);
     
@@ -1417,30 +1505,36 @@ class LocationService {
     }
     
     if (additionalEarnings > 0) {
-      _geofenceEarnings[geofenceId] = 
-          (_geofenceEarnings[geofenceId] ?? 0.0) + additionalEarnings;
+      _assignmentEarnings[assignmentId] = 
+          (_assignmentEarnings[assignmentId] ?? 0.0) + additionalEarnings;
       
       if (kDebugMode) {
-        print('💰 Added ₦${additionalEarnings.toStringAsFixed(2)} for ${timeSpent.inMinutes} minutes in ${geofence.name}');
-        print('💰 Total earnings from this geofence: ₦${_geofenceEarnings[geofenceId]!.toStringAsFixed(2)}');
+        print('💰 Added ₦${additionalEarnings.toStringAsFixed(2)} for ${timeSpent.inMinutes} minutes in ${geofence.name} (Assignment: $assignmentId)');
+        print('💰 Total earnings from this assignment: ₦${_assignmentEarnings[assignmentId]!.toStringAsFixed(2)}');
       }
     }
   }
   
-  // Get earnings breakdown per geofence
+  // Get earnings breakdown per assignment (consistent with earnings history UX)
   Map<String, Map<String, dynamic>> getEarningsBreakdown() {
-    if (_activeCampaign == null) return {};
+    if (_geofenceAssignments.isEmpty) return {};
     
     final breakdown = <String, Map<String, dynamic>>{};
     
-    for (final geofence in _activeCampaign!.geofences) {
+    for (final assignment in _geofenceAssignments) {
+      if (assignment.geofence == null) continue;
+      
+      final geofence = assignment.geofence!;
       final geofenceId = geofence.id ?? 'unknown_geofence';
-      breakdown[geofenceId] = {
+      breakdown[assignment.id] = {
+        'assignment_id': assignment.id,
         'geofence_name': geofence.name,
+        'geofence_id': geofenceId,
         'rate_type': geofence.rateType,
+        'status': assignment.status.toString(),
         'distance_km': (_geofenceDistances[geofenceId] ?? 0.0) / 1000.0,
         'duration_minutes': (_geofenceDurations[geofenceId] ?? Duration.zero).inMinutes,
-        'earnings': _geofenceEarnings[geofenceId] ?? 0.0,
+        'earnings': _assignmentEarnings[assignment.id] ?? 0.0, // Assignment-based earnings
         'rate_per_km': geofence.ratePerKm,
         'rate_per_hour': geofence.ratePerHour,
         'fixed_daily_rate': geofence.fixedDailyRate,
@@ -1470,6 +1564,109 @@ class LocationService {
     } catch (e) {
       if (kDebugMode) {
         print('❌ Failed to clear geofence events: $e');
+      }
+    }
+  }
+
+  /// Start hourly tracking service for geofences with per_hour rate type
+  Future<void> _startHourlyTrackingIfNeeded() async {
+    try {
+      // Check if any geofence assignments have per_hour rate type
+      final hourlyGeofences = _geofenceAssignments.where((assignment) {
+        return assignment.geofence?.rateType == 'per_hour';
+      }).toList();
+
+      if (hourlyGeofences.isNotEmpty) {
+        if (kDebugMode) {
+          print('🕐 HOURLY TRACKING: Found ${hourlyGeofences.length} per_hour geofences');
+          for (final assignment in hourlyGeofences) {
+            print('🕐   - ${assignment.geofenceName} (₦${assignment.geofence?.ratePerHour}/hr)');
+          }
+        }
+
+        // Start hourly tracking for the first per_hour geofence assignment
+        // Note: HourlyTrackingService currently supports one assignment at a time
+        // Future enhancement could support multiple assignments
+        final primaryHourlyAssignment = hourlyGeofences.first;
+        final geofenceId = primaryHourlyAssignment.geofence?.id ?? '';
+        final campaignId = _activeCampaignId ?? '';
+        final assignmentId = primaryHourlyAssignment.id ?? '';
+
+        await _hourlyTrackingService.startHourlyTracking(
+          geofenceId: geofenceId,
+          campaignId: campaignId,
+          assignmentId: assignmentId,
+        );
+
+        if (kDebugMode) {
+          print('🕐 HOURLY TRACKING: Started for assignment ${assignmentId}');
+          print('🕐 HOURLY TRACKING: Geofence: ${primaryHourlyAssignment.geofenceName}');
+          print('🕐 HOURLY TRACKING: Rate: ₦${primaryHourlyAssignment.geofence?.ratePerHour ?? 0}/hr');
+          print('🕐 HOURLY TRACKING: Working hours: 7 AM - 6 PM');
+          print('🕐 HOURLY TRACKING: Sample interval: 5 minutes');
+          print('🕐 HOURLY TRACKING: Minimum billable time: 10 minutes');
+        }
+      } else {
+        if (kDebugMode) {
+          print('🕐 HOURLY TRACKING: No per_hour geofences found, using standard distance tracking');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ HOURLY TRACKING ERROR: Failed to start hourly tracking: $e');
+      }
+    }
+  }
+
+  /// Add hourly earnings from HourlyTrackingService to update UI
+  /// Tracks earnings per assignment for UX consistency with earnings history
+  Future<void> addHourlyEarnings(String assignmentId, double amount) async {
+    if (amount > 0) {
+      _assignmentEarnings[assignmentId] = 
+          (_assignmentEarnings[assignmentId] ?? 0.0) + amount;
+      
+      if (kDebugMode) {
+        print('💰 HOURLY EARNINGS: Added ₦${amount.toStringAsFixed(2)} to assignment $assignmentId');
+        print('💰 Assignment total: ₦${_assignmentEarnings[assignmentId]!.toStringAsFixed(2)}');
+        print('💰 Grand total: ₦${totalGeofenceEarnings.toStringAsFixed(2)}');
+      }
+    }
+  }
+
+  /// Update hourly tracking when geofence assignments change
+  Future<void> _updateHourlyTrackingForAssignments() async {
+    try {
+      final currentHourlyGeofences = _geofenceAssignments.where((assignment) {
+        return assignment.geofence?.rateType == 'per_hour';
+      }).toList();
+
+      final wasHourlyTracking = _hourlyTrackingService.isTracking;
+      final hasHourlyGeofences = currentHourlyGeofences.isNotEmpty;
+
+      if (kDebugMode) {
+        print('🕐 HOURLY TRACKING UPDATE: Was tracking: $wasHourlyTracking, Has hourly geofences: $hasHourlyGeofences');
+      }
+
+      if (wasHourlyTracking && !hasHourlyGeofences) {
+        // Stop hourly tracking - no more per_hour geofences
+        await _hourlyTrackingService.stopHourlyTracking();
+        if (kDebugMode) {
+          print('🕐 HOURLY TRACKING: Stopped - no per_hour geofences remaining');
+        }
+      } else if (!wasHourlyTracking && hasHourlyGeofences) {
+        // Start hourly tracking - new per_hour geofences detected
+        await _startHourlyTrackingIfNeeded();
+      } else if (wasHourlyTracking && hasHourlyGeofences) {
+        // Already tracking but assignments changed - restart with new geofence
+        await _hourlyTrackingService.stopHourlyTracking();
+        await _startHourlyTrackingIfNeeded();
+        if (kDebugMode) {
+          print('🕐 HOURLY TRACKING: Restarted with updated assignments');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ HOURLY TRACKING UPDATE ERROR: $e');
       }
     }
   }

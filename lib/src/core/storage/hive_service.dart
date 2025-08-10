@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/rider.dart';
 import '../models/campaign.dart';
@@ -469,6 +470,205 @@ class HiveService {
 
   static Future<void> clearLastStationaryTime() async {
     await _settingsBox.delete('last_stationary_time');
+  }
+
+  // Hourly tracking window storage methods
+  static Future<void> saveHourlyTrackingWindow(dynamic window) async {
+    // For now, use dynamic type since we don't have HourlyTrackingWindow Hive adapter
+    // In a full implementation, this would store to a proper Hive box
+    // Store as JSON in settings for simplicity
+    await _settingsBox.put('current_hourly_window', window.toString());
+  }
+
+  static Future<void> saveCompletedHourlyWindow(dynamic window) async {
+    try {
+      // Convert window to JSON
+      final windowJson = _windowToJson(window);
+      windowJson['completed_at'] = DateTime.now().toIso8601String();
+      windowJson['sync_status'] = 'pending';  // Mark for sync
+      
+      // Get existing completed windows
+      final List<Map<String, dynamic>> completedWindows = getCompletedHourlyWindows();
+      
+      // Add new window (avoid duplicates by ID)
+      completedWindows.removeWhere((w) => w['id'] == windowJson['id']);
+      completedWindows.add(windowJson);
+      
+      // Keep only last 50 windows to prevent storage bloat
+      if (completedWindows.length > 50) {
+        completedWindows.removeRange(0, completedWindows.length - 50);
+      }
+      
+      await _settingsBox.put('completed_hourly_windows', completedWindows);
+      
+      if (kDebugMode) {
+        print('💾 Saved completed hourly window: ${windowJson['id']} (${completedWindows.length} total pending)');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to save completed hourly window: $e');
+      }
+    }
+  }
+
+  static List<Map<String, dynamic>> getCompletedHourlyWindows() {
+    try {
+      final windows = _settingsBox.get('completed_hourly_windows');
+      if (windows is List) {
+        return List<Map<String, dynamic>>.from(windows.map((w) => Map<String, dynamic>.from(w)));
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to get completed hourly windows: $e');
+      }
+    }
+    return <Map<String, dynamic>>[];
+  }
+
+  static Future<void> clearCompletedHourlyWindows() async {
+    await _settingsBox.delete('completed_hourly_windows');
+  }
+
+  // Backend earnings calculation storage
+  static Future<void> saveBackendEarningsCalculation(String windowId, Map<String, dynamic> calculation) async {
+    try {
+      // Save backend earnings calculation result for window
+      calculation['stored_at'] = DateTime.now().toIso8601String();
+      await _settingsBox.put('backend_calc_$windowId', calculation);
+      
+      if (kDebugMode) {
+        print('💾 Saved backend calculation for window: $windowId');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to save backend calculation: $e');
+      }
+    }
+  }
+
+  static Map<String, dynamic>? getBackendEarningsCalculation(String windowId) {
+    try {
+      final calc = _settingsBox.get('backend_calc_$windowId');
+      return calc is Map ? Map<String, dynamic>.from(calc) : null;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to get backend calculation: $e');
+      }
+      return null;
+    }
+  }
+
+  static Future<void> clearBackendEarningsCalculation(String windowId) async {
+    await _settingsBox.delete('backend_calc_$windowId');
+  }
+
+  // Additional methods for offline sync support
+  static List<Map<String, dynamic>> getPendingSyncWindows() {
+    try {
+      final allWindows = getCompletedHourlyWindows();
+      return allWindows.where((w) => w['sync_status'] == 'pending').toList();
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to get pending sync windows: $e');
+      }
+      return <Map<String, dynamic>>[];
+    }
+  }
+  
+  static Future<void> markWindowSynced(String windowId) async {
+    try {
+      final allWindows = getCompletedHourlyWindows();
+      final windowIndex = allWindows.indexWhere((w) => w['id'] == windowId);
+      
+      if (windowIndex >= 0) {
+        allWindows[windowIndex]['sync_status'] = 'synced';
+        allWindows[windowIndex]['synced_at'] = DateTime.now().toIso8601String();
+        
+        await _settingsBox.put('completed_hourly_windows', allWindows);
+        
+        if (kDebugMode) {
+          print('✅ Marked hourly window as synced: $windowId');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to mark window as synced: $e');
+      }
+    }
+  }
+  
+  static Future<void> cleanupSyncedWindows() async {
+    try {
+      final allWindows = getCompletedHourlyWindows();
+      final cutoffDate = DateTime.now().subtract(const Duration(days: 7));
+      
+      // Keep pending and recent synced windows
+      final filteredWindows = allWindows.where((w) {
+        if (w['sync_status'] == 'pending') return true;
+        
+        final syncedAt = w['synced_at'];
+        if (syncedAt != null) {
+          final syncDate = DateTime.tryParse(syncedAt);
+          return syncDate != null && syncDate.isAfter(cutoffDate);
+        }
+        return false;
+      }).toList();
+      
+      if (filteredWindows.length != allWindows.length) {
+        await _settingsBox.put('completed_hourly_windows', filteredWindows);
+        if (kDebugMode) {
+          print('🧹 Cleaned up ${allWindows.length - filteredWindows.length} old synced windows');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to cleanup synced windows: $e');
+      }
+    }
+  }
+  
+  // Helper to convert window object to JSON
+  static Map<String, dynamic> _windowToJson(dynamic window) {
+    if (window == null) return {};
+    
+    try {
+      // Handle different window object types
+      if (window is Map) {
+        return Map<String, dynamic>.from(window);
+      }
+      
+      // For HourlyTrackingWindow objects, extract key properties
+      return {
+        'id': window.id ?? 'unknown',
+        'geofence_id': window.geofenceId ?? '',
+        'assignment_id': window.assignmentId ?? '',
+        'campaign_id': window.campaignId ?? '',
+        'start_time': window.startTime?.toIso8601String() ?? '',
+        'end_time': window.endTime?.toIso8601String() ?? '',
+        'samples': window.samples?.map((s) => {
+          'id': s.id,
+          'latitude': s.latitude,
+          'longitude': s.longitude,
+          'accuracy': s.accuracy,
+          'timestamp': s.timestamp.toIso8601String(),
+          'is_within_geofence': s.isWithinGeofence,
+          'speed': s.speed,
+          'heading': s.heading,
+        }).toList() ?? [],
+        'failure_events': window.failureEvents?.map((e) => {
+          'timestamp': e.timestamp.toIso8601String(),
+          'reason': e.reason,
+        }).toList() ?? [],
+        'status': window.status?.toString() ?? 'unknown',
+        'effective_minutes': 0.0,  // Will be calculated by backend
+        'tracking_quality': 0.0,   // Will be calculated by backend
+      };
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to convert window to JSON: $e');
+      }
+      return {'id': 'error', 'error': e.toString()};
+    }
   }
 
 }

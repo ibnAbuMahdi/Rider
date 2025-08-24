@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../providers/auth_provider.dart';
+import '../../features/auth/screens/welcome_screen.dart';
+import '../../features/auth/screens/signup_screen.dart';
 import '../../features/auth/screens/phone_input_screen.dart';
 import '../../features/auth/screens/otp_verification_screen.dart';
 import '../../features/onboarding/screens/onboarding_screen.dart';
@@ -25,7 +27,7 @@ class AppRouter {
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
-    initialLocation: '/auth/phone',
+    initialLocation: '/auth/welcome',
     redirect: (context, state) {
       if (kDebugMode) {
         print('🔄 ROUTER DEBUG: location=${state.matchedLocation}');
@@ -53,7 +55,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       
       // Prevent redirect loops
       if (location == '/' && !isAuthenticated) {
-        return '/auth/phone';
+        return '/auth/welcome';
       }
       if (location == '/' && isAuthenticated && rider?.hasCompletedOnboarding == true) {
         return '/home';
@@ -67,7 +69,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       
       if (!isAuthenticated) {
         // Not authenticated, redirect to auth unless already there
-        return isAuthRoute ? null : '/auth/phone';
+        return isAuthRoute ? null : '/auth/welcome';
       }
       
       // Authenticated but on auth route, redirect to appropriate screen
@@ -94,7 +96,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 	  } catch (e) {
 		print('🔴 ROUTER ERROR: $e');
 		print('🔴 STACK: ${StackTrace.current}');
-		return '/auth/phone'; // Safe fallback
+		return '/auth/welcome'; // Safe fallback
 	}
 
     },
@@ -107,6 +109,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       
       // Auth routes
       GoRoute(
+        path: '/auth/welcome',
+        builder: (context, state) => const WelcomeScreen(),
+      ),
+      GoRoute(
+        path: '/auth/signup',
+        builder: (context, state) => const SignupScreen(),
+      ),
+      GoRoute(
         path: '/auth/phone',
         builder: (context, state) => const PhoneInputScreen(),
       ),
@@ -115,7 +125,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final phoneNumber = state.extra as String?;
           if (phoneNumber == null) {
-            return const PhoneInputScreen();
+            return const WelcomeScreen();
           }
           return OTPVerificationScreen(phoneNumber: phoneNumber);
         },
@@ -180,11 +190,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const BankAccountsScreen(),
         routes: [
           GoRoute(
-            path: '/add',
+            path: 'add',
             builder: (context, state) => const AddBankAccountScreen(),
           ),
           GoRoute(
-            path: '/verification-logs',
+            path: 'verification-logs',
             builder: (context, state) => const VerificationLogsScreen(),
           ),
         ],

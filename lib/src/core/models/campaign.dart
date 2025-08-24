@@ -103,6 +103,10 @@ class GeofenceAssignment {
   @HiveField(7)
   @JsonKey(name: 'radius_meters')
   final int radiusMeters;
+
+  @HiveField(28)
+  @JsonKey(name: 'rate_type')
+  final String? rateType;
   
   @HiveField(8)
   @JsonKey(name: 'rate_per_km')
@@ -192,6 +196,7 @@ class GeofenceAssignment {
     required this.centerLongitude,
     required this.radiusMeters,
     this.ratePerKm,
+    this.rateType,
     this.ratePerHour,
     this.fixedDailyRate,
     this.amountEarned,
@@ -215,6 +220,41 @@ class GeofenceAssignment {
 
   factory GeofenceAssignment.fromJson(Map<String, dynamic> json) => _$GeofenceAssignmentFromJson(json);
   Map<String, dynamic> toJson() => _$GeofenceAssignmentToJson(this);
+  
+  /// Specialized factory for my-campaigns API response
+  factory GeofenceAssignment.fromMyCampaignsJson(Map<String, dynamic> json) {
+    return GeofenceAssignment(
+      id: json['assignment_id'] as String? ?? json['id'] as String? ?? '${json['geofence_id']}_assignment',
+      geofenceId: json['geofence_id'] as String,
+      geofenceName: json['geofence_name'] as String,
+      status: _parseGeofenceStatus(json['status'] as String?),
+      startedAt: json['started_at'] != null ? DateTime.parse(json['started_at'] as String) : null,
+      endedAt: json['completed_at'] != null ? DateTime.parse(json['completed_at'] as String) : null,
+      centerLatitude: (json['centerLatitude'] as num?)?.toDouble() ?? 0.0,
+      centerLongitude: (json['centerLongitude'] as num?)?.toDouble() ?? 0.0,
+      radiusMeters: (json['radius'] as num?)?.toInt() ?? 0,
+      name: json['name'] as String?,
+      centerLatitudeCamelCase: (json['centerLatitude'] as num?)?.toDouble(),
+      centerLongitudeCamelCase: (json['centerLongitude'] as num?)?.toDouble(),
+      radius: (json['radius'] as num?)?.toInt(),
+      // Parse rate information from backend
+      rateType: json['rate_type'] as String?,
+      ratePerKm: (json['rate_per_km'] as num?)?.toDouble(),
+      ratePerHour: (json['rate_per_hour'] as num?)?.toDouble(),
+      fixedDailyRate: (json['fixed_daily_rate'] as num?)?.toDouble(),
+    );
+  }
+  
+  static GeofenceAssignmentStatus _parseGeofenceStatus(String? status) {
+    switch (status) {
+      case 'assigned': return GeofenceAssignmentStatus.assigned;
+      case 'active': return GeofenceAssignmentStatus.active;
+      case 'paused': return GeofenceAssignmentStatus.paused;
+      case 'completed': return GeofenceAssignmentStatus.completed;
+      case 'cancelled': return GeofenceAssignmentStatus.cancelled;
+      default: return GeofenceAssignmentStatus.active;
+    }
+  }
   
   // Helper to create a Geofence-like object for compatibility
   GeofenceData? get geofence => GeofenceData(
@@ -250,6 +290,7 @@ class GeofenceAssignment {
     double? centerLatitude,
     double? centerLongitude,
     int? radiusMeters,
+    String? rateType,
     double? ratePerKm,
     double? ratePerHour,
     double? fixedDailyRate,
@@ -280,6 +321,7 @@ class GeofenceAssignment {
       centerLatitude: centerLatitude ?? this.centerLatitude,
       centerLongitude: centerLongitude ?? this.centerLongitude,
       radiusMeters: radiusMeters ?? this.radiusMeters,
+      rateType: rateType ?? this.rateType,
       ratePerKm: ratePerKm ?? this.ratePerKm,
       ratePerHour: ratePerHour ?? this.ratePerHour,
       fixedDailyRate: fixedDailyRate ?? this.fixedDailyRate,
@@ -505,7 +547,7 @@ class Campaign {
       name: json['name'] as String,
       description: json['description'] as String? ?? '',
       clientName: json['client_name'] as String? ?? '',
-      agencyId: json['agency_id'] as String? ?? '',
+      agencyId: json['agency_id'] as String? ?? 'unknown',
       agencyName: json['agency_name'] as String? ?? '',
       stickerImageUrl: json['sticker_image_url'] as String?,
       ratePerKm: _stringToDouble(json['rate_per_km']),
@@ -531,7 +573,7 @@ class Campaign {
           ? CampaignAssignment.fromJson(json['assignment'] as Map<String, dynamic>)
           : null,
       activeGeofences: (json['active_geofences'] as List<dynamic>?)
-          ?.map((g) => GeofenceAssignment.fromJson(g as Map<String, dynamic>))
+          ?.map((g) => GeofenceAssignment.fromMyCampaignsJson(g as Map<String, dynamic>))
           .toList() ?? [],
     );
   }
@@ -747,15 +789,19 @@ class Geofence {
   final double? remainingBudget;
   
   @HiveField(10)
+  @JsonKey(name: 'rate_type')
   final String? rateType; // 'per_km', 'per_hour', 'fixed_daily', 'hybrid'
   
   @HiveField(11)
+  @JsonKey(name: 'rate_per_km')
   final double? ratePerKm;
   
   @HiveField(12)
+  @JsonKey(name: 'rate_per_hour')
   final double? ratePerHour;
   
   @HiveField(13)
+  @JsonKey(name: 'fixed_daily_rate')
   final double? fixedDailyRate;
   
   @HiveField(14)
@@ -804,6 +850,7 @@ class Geofence {
   final String? areaType;
   
   @HiveField(29)
+  @JsonKey(name: 'target_coverage_hours')
   final int? targetCoverageHours;
   
   @HiveField(30)

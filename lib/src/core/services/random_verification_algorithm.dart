@@ -80,7 +80,7 @@ class RandomVerificationAlgorithm {
     final speed = currentPosition.speed ?? 0.0;
     if (speed > _stationarySpeedThreshold) {
       if (kDebugMode) {
-        print('🎯 RANDOM VERIFICATION: Rider is moving (${speed.toStringAsFixed(1)} m/s > ${_stationarySpeedThreshold} m/s)');
+        print('🎯 RANDOM VERIFICATION: Rider is moving (${speed.toStringAsFixed(1)} m/s > $_stationarySpeedThreshold m/s)');
       }
       return false;
     }
@@ -153,32 +153,30 @@ class RandomVerificationAlgorithm {
     }
     double? accuracy = currentPosition.accuracy;
     double formattedAccuracy = 0.0;
-    if (accuracy != null) {
-      String accString = accuracy.toStringAsFixed(2); // Start with 2 decimal places
-      if (accString.replaceAll('.', '').length > 8) {
-        // If total digits exceed 8, truncate
-        // Find how many digits we need to keep before the decimal point
-        int decimalIndex = accString.indexOf('.');
-        int integerPartLength = decimalIndex == -1 ? accString.length : decimalIndex;
+    String accString = accuracy.toStringAsFixed(2); // Start with 2 decimal places
+    if (accString.replaceAll('.', '').length > 8) {
+      // If total digits exceed 8, truncate
+      // Find how many digits we need to keep before the decimal point
+      int decimalIndex = accString.indexOf('.');
+      int integerPartLength = decimalIndex == -1 ? accString.length : decimalIndex;
 
-        int digitsToKeep = 8;
-        if (decimalIndex != -1) { // If there's a decimal point, it counts as one of the 8 digits
-          digitsToKeep--; // For the decimal point itself
-          if (integerPartLength >= digitsToKeep) {
-            // If integer part alone is 7 or more digits, we'll only have integer part
-            accString = accString.substring(0, digitsToKeep);
-          } else {
-            // integerPartLength < digitsToKeep, so we can have decimal places
-            int remainingDigits = digitsToKeep - integerPartLength;
-            accString = accString.substring(0, decimalIndex + 1 + min(remainingDigits, 2));
-          }
+      int digitsToKeep = 8;
+      if (decimalIndex != -1) { // If there's a decimal point, it counts as one of the 8 digits
+        digitsToKeep--; // For the decimal point itself
+        if (integerPartLength >= digitsToKeep) {
+          // If integer part alone is 7 or more digits, we'll only have integer part
+          accString = accString.substring(0, digitsToKeep);
         } else {
-           accString = accString.substring(0, min(accString.length, 8));
+          // integerPartLength < digitsToKeep, so we can have decimal places
+          int remainingDigits = digitsToKeep - integerPartLength;
+          accString = accString.substring(0, decimalIndex + 1 + min(remainingDigits, 2));
         }
+      } else {
+         accString = accString.substring(0, min(accString.length, 8));
       }
-      formattedAccuracy = double.parse(accString);
     }
-if (kDebugMode) {
+    formattedAccuracy = double.parse(accString);
+  if (kDebugMode) {
         print('🎯 RANDOM VERIFICATION: Accuracy - $formattedAccuracy');
       }
     // Create verification request

@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
 
-import '../models/fleet_owner.dart';
 import '../models/fleet_status.dart';
 import '../services/fleet_service.dart';
 

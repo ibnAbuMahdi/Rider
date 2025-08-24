@@ -18,7 +18,7 @@ class BankSelectionBottomSheet extends ConsumerStatefulWidget {
 
 class _BankSelectionBottomSheetState extends ConsumerState<BankSelectionBottomSheet> {
   final TextEditingController _searchController = TextEditingController();
-  List<SupportedBank> _filteredBanks = [];
+  final List<SupportedBank> _filteredBanks = [];
   String _searchQuery = '';
 
   @override

@@ -750,7 +750,7 @@ class CampaignService {
         digitsToKeep--; // For the decimal point itself
         if (integerPartLength >= digitsToKeep) {
           // Integer part is too long, truncate to fit
-          accString = accString.substring(0, digitsToKeep) + '.00';
+          accString = '${accString.substring(0, digitsToKeep)}.00';
         } else {
           // Keep integer part and limit decimal places
           int maxDecimalPlaces = digitsToKeep - integerPartLength;

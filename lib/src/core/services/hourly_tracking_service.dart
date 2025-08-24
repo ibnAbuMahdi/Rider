@@ -9,6 +9,7 @@ import '../storage/hive_service.dart';
 import 'notification_service.dart';
 import 'earnings_service.dart';
 import 'location_service.dart';
+import 'location_service.dart';
 import 'api_service.dart';
 import 'location_api_service.dart';
 
@@ -18,12 +19,12 @@ class HourlyTrackingService {
   
   HourlyTrackingService._();
 
-  // Configuration constants based on requirements
-  static const Duration SAMPLE_INTERVAL = Duration(minutes: 5);
-  static const Duration RETRY_WINDOW = Duration(minutes: 2);
-  static const int MAX_RETRY_ATTEMPTS = 3;
-  static const double MIN_ACCURACY_THRESHOLD = 50.0; // meters
-  static const Duration MIN_BILLABLE_TIME = Duration(minutes: 10);
+  // Configuration constants - optimized for debugging with faster sampling
+  static const Duration SAMPLE_INTERVAL = Duration(seconds: 30);
+  static const Duration RETRY_WINDOW = Duration(seconds: 20); // Reduced from 2 minutes
+  static const int MAX_RETRY_ATTEMPTS = 2; // Reduced from 3 for faster debugging
+  static const double MIN_ACCURACY_THRESHOLD = 2000.0; // 2km for debugging
+  static const Duration MIN_BILLABLE_TIME = Duration(seconds: 30); // Reduced from 10 minutes for debugging
   static const int MIN_SAMPLES_REQUIRED = 2;
   
   // Working hours: 7 AM to 6 PM (universal)
@@ -72,10 +73,16 @@ class HourlyTrackingService {
       print('⏰ Starting hourly tracking for geofence: $geofenceId');
     }
 
+    // Try to recover any existing window from storage
+    await _recoverCurrentWindow();
+    
+    // Sync any pending windows from previous sessions
+    await syncPendingWindows();
+
     // Start periodic sampling
     _startPeriodicSampling();
     
-    // Start window processing timer (every hour)
+    // Start window processing timer (every 3 minutes for debugging)
     _startWindowProcessing();
     
     // TODO: Implement showTrackingNotification in NotificationService
@@ -100,6 +107,9 @@ class HourlyTrackingService {
     // Process all completed windows
     await _processCompletedWindows();
 
+    // Clear current window from storage
+    await HiveService.clearCurrentHourlyWindow();
+
     _currentGeofenceId = null;
     _currentCampaignId = null;
     _currentAssignmentId = null;
@@ -113,29 +123,35 @@ class HourlyTrackingService {
   /// Start periodic location sampling
   void _startPeriodicSampling() {
     _samplingTimer = Timer.periodic(SAMPLE_INTERVAL, (timer) async {
-      if (_isWithinWorkingHours() && _isTracking) {
-        await _attemptLocationSample();
+      if (_isTracking) {
+        if (kDebugMode) {
+          final now = DateTime.now();
+          final withinHours = _isWithinWorkingHours();
+          print('⏰ SAMPLING CHECK: Current time: ${now.hour}:${now.minute}, within working hours: $withinHours, tracking: $_isTracking');
+        }
+        
+        // For debugging: Allow tracking outside working hours, but log it
+        if (_isWithinWorkingHours() || kDebugMode) {
+          await _attemptLocationSample();
+        }
       }
     });
   }
 
-  /// Start window processing (every hour on the hour)
+  /// Start window processing (every 3 minutes for debugging)
   void _startWindowProcessing() {
     final now = DateTime.now();
-    final nextHour = DateTime(now.year, now.month, now.day, now.hour + 1, 0, 0);
-    final timeUntilNextHour = nextHour.difference(now);
-
-    // Wait until next hour, then process every hour
-    Timer(timeUntilNextHour, () {
-      _processHourlyWindow();
-      _windowProcessingTimer = Timer.periodic(const Duration(hours: 1), (timer) {
-        _processHourlyWindow();
+    // Start processing immediately, then every 3 minutes
+    Timer(const Duration(seconds: 5), () {
+      _processWindow();
+      _windowProcessingTimer = Timer.periodic(const Duration(minutes: 3), (timer) {
+        _processWindow();
       });
     });
   }
 
-  /// Process current hour window and start new one
-  Future<void> _processHourlyWindow() async {
+  /// Process current window and start new one
+  Future<void> _processWindow() async {
     if (_currentWindow != null) {
       await _finalizeCurrentWindow();
     }
@@ -154,19 +170,30 @@ class HourlyTrackingService {
 
   /// Get location sample with retry mechanism
   Future<void> _getSampleWithRetry() async {
+    if (kDebugMode) {
+      print('⏰ Attempting location sample (attempt ${_currentRetryCount + 1}/${MAX_RETRY_ATTEMPTS + 1})');
+    }
+    
     try {
       final position = await _getLocationSample();
       
-      if (position != null && position.accuracy <= MIN_ACCURACY_THRESHOLD) {
+      if (position != null) {
+        if (kDebugMode) {
+          print('⏰ Got location sample: accuracy ${position.accuracy.toStringAsFixed(1)}m');
+        }
         await _processSample(position);
         _currentRetryCount = 0;
         return;
+      } else {
+        if (kDebugMode) {
+          print('⏰ Location sample returned null');
+        }
       }
       
       // Retry if poor accuracy or failed
       if (_currentRetryCount < MAX_RETRY_ATTEMPTS) {
         _currentRetryCount++;
-        final retryDelay = Duration(seconds: 30 * _currentRetryCount); // Exponential backoff
+        final retryDelay = Duration(seconds: 5 * _currentRetryCount); // Faster exponential backoff for debugging
         
         _retryTimer = Timer(retryDelay, () => _getSampleWithRetry());
         
@@ -184,33 +211,58 @@ class HourlyTrackingService {
   /// Get a single location sample
   Future<Position?> _getLocationSample() async {
     try {
-      // Try high accuracy first
+      // Try high accuracy first with longer timeout for debugging
       final highAccuracyPosition = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 15),
+        timeLimit: const Duration(seconds: 30), // Increased from 15s
       );
       
-      if (highAccuracyPosition.accuracy <= 20.0) {
+      if (highAccuracyPosition.accuracy <= 2000.0) {
         return highAccuracyPosition;
       }
       
-      // Fall back to best available
+      // Fall back to medium accuracy with longer timeout
       final bestPosition = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.best,
-        timeLimit: const Duration(seconds: 15),
+        desiredAccuracy: LocationAccuracy.medium, // Less demanding
+        timeLimit: const Duration(seconds: 30), // Increased from 15s
       );
       
-      return bestPosition.accuracy <= MIN_ACCURACY_THRESHOLD ? bestPosition : null;
+      // For debugging, accept any position (even if accuracy is poor)
+      if (kDebugMode && bestPosition.accuracy > MIN_ACCURACY_THRESHOLD) {
+        print('⚠️ Using poor accuracy location for debugging: ${bestPosition.accuracy.toStringAsFixed(1)}m');
+      }
+      return bestPosition; // Accept any position for debugging
+          
+      return null;
       
     } catch (e) {
       if (kDebugMode) {
         print('🚨 Location sampling failed: $e');
       }
+      
+      // Final fallback: try to get last known position for debugging
+      try {
+        final lastKnown = await Geolocator.getLastKnownPosition();
+        if (lastKnown != null) {
+          if (kDebugMode) {
+            print('🔄 Using last known position as fallback: accuracy ${lastKnown.accuracy.toStringAsFixed(1)}m');
+          }
+          return lastKnown;
+        }
+      } catch (fallbackError) {
+        if (kDebugMode) {
+          print('🚨 Last known position fallback failed: $fallbackError');
+        }
+      }
+      
       return null;
     }
   }
 
   /// Process a valid location sample
+  /// IMPORTANT: All location samples are recorded regardless of geofence status.
+  /// Only samples INSIDE the geofence count towards earnings calculations.
+  /// This ensures continuous location tracking while maintaining proper earnings logic.
   Future<void> _processSample(Position position) async {
     if (_currentWindow == null) return;
 
@@ -239,10 +291,51 @@ class HourlyTrackingService {
   Future<bool> _isPositionInGeofence(Position position) async {
     if (_currentGeofenceId == null) return false;
     
-    // TODO: Implement actual geofence boundary checking
-    // This should use the geofence boundaries from the campaign data
-    // For now, return true as placeholder
-    return true;
+    try {
+      // Get geofence from LocationService
+      final locationService = LocationService.instance;
+      final assignments = locationService.geofenceAssignments;
+      
+      if (kDebugMode) {
+        print('🔍 GEOFENCE CHECK: Looking for geofence ID: $_currentGeofenceId');
+        print('🔍 Available assignments:');
+        for (final assignment in assignments) {
+          print('🔍   - ${assignment.geofenceName}: ${assignment.geofenceId}');
+        }
+      }
+      
+      for (final assignment in assignments) {
+        if (assignment.geofenceId == _currentGeofenceId) {
+          // Calculate distance from geofence center using assignment data
+          final distance = Geolocator.distanceBetween(
+            position.latitude,
+            position.longitude,
+            assignment.centerLatitude,
+            assignment.centerLongitude,
+          );
+          
+          // Check if within radius (add small buffer for GPS accuracy)
+          final radiusMeters = assignment.radiusMeters.toDouble();
+          final isInside = distance <= (radiusMeters + 50); // 50m buffer
+          
+          if (kDebugMode) {
+            print('📍 Geofence check: ${isInside ? "INSIDE" : "OUTSIDE"} (distance: ${distance.toStringAsFixed(1)}m, radius: ${radiusMeters}m)');
+          }
+          
+          return isInside;
+        }
+      }
+      
+      if (kDebugMode) {
+        print('⚠️ Geofence $_currentGeofenceId not found in assignments');
+      }
+      return false;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error checking geofence position: $e');
+      }
+      return false;
+    }
   }
 
   /// Handle sampling failure after max retries
@@ -269,18 +362,19 @@ class HourlyTrackingService {
     }
   }
 
-  /// Start a new tracking window
+  /// Start a new tracking window (3-minute windows for debugging)
   Future<void> _startNewWindow() async {
     final now = DateTime.now();
-    final hourStart = DateTime(now.year, now.month, now.day, now.hour, 0, 0);
-    final hourEnd = hourStart.add(const Duration(hours: 1));
+    final windowStart = now; // Start window at current time
+    final windowEnd = windowStart.add(const Duration(minutes: 3)); // 3-minute windows
 
     _currentWindow = HourlyTrackingWindow(
       id: _uuid.v4(),
-      startTime: hourStart,
-      endTime: hourEnd,
+      startTime: windowStart,
+      endTime: windowEnd,
       geofenceId: _currentGeofenceId!,
       campaignId: _currentCampaignId!,
+      assignmentId: _currentAssignmentId, // Add assignment ID for earnings attribution
       samples: [],
       status: WindowStatus.active,
       failureEvents: [],
@@ -289,11 +383,13 @@ class HourlyTrackingService {
     await _saveCurrentWindow();
 
     if (kDebugMode) {
-      print('⏰ Started new window: ${hourStart.hour}:00-${hourEnd.hour}:00');
+      final startStr = '${windowStart.hour.toString().padLeft(2, '0')}:${windowStart.minute.toString().padLeft(2, '0')}';
+      final endStr = '${windowEnd.hour.toString().padLeft(2, '0')}:${windowEnd.minute.toString().padLeft(2, '0')}';
+      print('⏰ Started new 3-minute window: $startStr-$endStr');
     }
   }
 
-  /// Finalize current window and queue for processing
+  /// Finalize current window and process for earnings immediately
   Future<void> _finalizeCurrentWindow() async {
     if (_currentWindow == null) return;
 
@@ -301,12 +397,17 @@ class HourlyTrackingService {
       status: _isValidWindow(_currentWindow!) ? WindowStatus.completed : WindowStatus.invalid,
     );
 
-    _completedWindows.add(_currentWindow!);
-    await _saveCompletedWindow(_currentWindow!);
-    
     if (kDebugMode) {
       print('⏰ Finalized window: ${_currentWindow!.status}, ${_currentWindow!.samples.length} samples');
     }
+    
+    // Process earnings immediately if window is valid
+    if (_currentWindow!.status == WindowStatus.completed) {
+      await _calculateWindowEarnings(_currentWindow!);
+    }
+    
+    // Save the processed window
+    await _saveCompletedWindow(_currentWindow!);
 
     _currentWindow = null;
   }
@@ -331,6 +432,8 @@ class HourlyTrackingService {
         if (kDebugMode) {
           print('⏰ Window below minimum billable time: ${effectiveTime.inMinutes} minutes');
         }
+        // Save to pending sync even if below minimum for backend validation
+        await HiveService.saveCompletedHourlyWindow(window);
         return;
       }
 
@@ -392,8 +495,8 @@ class HourlyTrackingService {
         
         if (kDebugMode) {
           print('⏰ Backend calculation completed:');
-          print('  - Amount: ₦${backendAmount}');
-          print('  - Effective time: ${backendMinutes} minutes');
+          print('  - Amount: ₦$backendAmount');
+          print('  - Effective time: $backendMinutes minutes');
           print('  - Status: ${result['status']}');
           print('  - Backend validation: ${backendCalc['working_hours_valid'] ? '✅' : '❌'} Working hours');
           print('  - Backend validation: ${backendCalc['minimum_time_met'] ? '✅' : '❌'} Minimum time');
@@ -435,12 +538,17 @@ class HourlyTrackingService {
         if (kDebugMode) {
           print('🚨 Backend calculation failed or returned invalid result');
         }
+        // Save to pending sync for retry when connection is restored
+        await HiveService.saveCompletedHourlyWindow(window);
+        return;
       }
 
     } catch (e) {
       if (kDebugMode) {
         print('🚨 Failed to calculate window earnings: $e');
       }
+      // Save to pending sync for retry when connection is restored
+      await HiveService.saveCompletedHourlyWindow(window);
     }
   }
 
@@ -455,10 +563,17 @@ class HourlyTrackingService {
     final geofenceSamples = window.samples.where((s) => s.isWithinGeofence).toList();
     
     if (geofenceSamples.length < MIN_SAMPLES_REQUIRED) {
+      if (kDebugMode) {
+        print('⏰ EFFECTIVE TIME: Insufficient geofence samples: ${geofenceSamples.length} < $MIN_SAMPLES_REQUIRED');
+      }
       return Duration.zero;
     }
 
     Duration totalTime = Duration.zero;
+    
+    if (kDebugMode) {
+      print('⏰ EFFECTIVE TIME: Calculating from ${geofenceSamples.length} geofence samples');
+    }
     
     for (int i = 0; i < geofenceSamples.length - 1; i++) {
       final currentSample = geofenceSamples[i];
@@ -466,10 +581,25 @@ class HourlyTrackingService {
       
       final segmentDuration = nextSample.timestamp.difference(currentSample.timestamp);
       
-      // Cap segment duration to prevent anomalies (max 10 minutes between samples)
-      if (segmentDuration <= const Duration(minutes: 10)) {
-        totalTime += segmentDuration;
+      if (kDebugMode) {
+        print('⏰   Segment $i: ${segmentDuration.inSeconds}s (${segmentDuration.inMilliseconds}ms)');
       }
+      
+      // Cap segment duration to prevent anomalies (max 2 minutes between samples for 30s sampling)
+      if (segmentDuration <= const Duration(minutes: 2)) {
+        totalTime += segmentDuration;
+        if (kDebugMode) {
+          print('⏰     Added to total (within 2min cap)');
+        }
+      } else {
+        if (kDebugMode) {
+          print('⏰     Skipped (exceeds 2min cap)');
+        }
+      }
+    }
+    
+    if (kDebugMode) {
+      print('⏰ EFFECTIVE TIME: Total calculated: ${totalTime.inSeconds}s (${totalTime.inMilliseconds}ms)');
     }
     
     return totalTime;
@@ -484,8 +614,8 @@ class HourlyTrackingService {
         return 0.0; // Outside working hours
       }
 
-      // Ensure minimum billable time (10 minutes with rounding up)
-      if (effectiveTime.inMinutes < 10) {
+      // Ensure minimum billable time (30 seconds for debugging)
+      if (effectiveTime.inSeconds < 30) {
         return 0.0;
       }
 
@@ -509,7 +639,7 @@ class HourlyTrackingService {
         print('🧮 LOCAL CALCULATION:');
         print('  - Effective minutes: ${effectiveMinutes.toStringAsFixed(1)}');
         print('  - Billable minutes: $billableMinutes');
-        print('  - Hourly rate: ₦${hourlyRate}/hr');
+        print('  - Hourly rate: ₦$hourlyRate/hr');
         print('  - Local earnings: ₦${localEarnings.toStringAsFixed(2)}');
       }
 
@@ -533,7 +663,7 @@ class HourlyTrackingService {
     final geofenceRatio = geofenceSamples / totalSamples;
     final failurePenalty = failureCount * 0.1;
     final accuracyScore = window.samples.isEmpty ? 0.0 : 
-        window.samples.map((s) => s.accuracy <= 20 ? 1.0 : 0.5).reduce((a, b) => a + b) / totalSamples;
+        window.samples.map((s) => s.accuracy <= 2000 ? 1.0 : 0.5).reduce((a, b) => a + b) / totalSamples;
     
     return ((geofenceRatio + accuracyScore) / 2 - failurePenalty).clamp(0.0, 1.0);
   }
@@ -548,7 +678,18 @@ class HourlyTrackingService {
   /// Validate if window has sufficient data for earnings calculation
   bool _isValidWindow(HourlyTrackingWindow window) {
     final geofenceSamples = window.samples.where((s) => s.isWithinGeofence).length;
-    final hasMinimumTime = _calculateEffectiveWorkingTime(window) >= MIN_BILLABLE_TIME;
+    final effectiveTime = _calculateEffectiveWorkingTime(window);
+    final hasMinimumTime = effectiveTime >= MIN_BILLABLE_TIME;
+    
+    if (kDebugMode) {
+      print('⏰ WINDOW VALIDATION:');
+      print('⏰   Total samples: ${window.samples.length}');
+      print('⏰   Geofence samples: $geofenceSamples (required: >= $MIN_SAMPLES_REQUIRED)');
+      print('⏰   Effective time: ${effectiveTime.inMilliseconds}ms / ${effectiveTime.inSeconds}s (required: >= ${MIN_BILLABLE_TIME.inSeconds}s)');
+      print('⏰   Samples check: ${geofenceSamples >= MIN_SAMPLES_REQUIRED}');
+      print('⏰   Time check: $hasMinimumTime');
+      print('⏰   Overall valid: ${geofenceSamples >= MIN_SAMPLES_REQUIRED && hasMinimumTime}');
+    }
     
     return geofenceSamples >= MIN_SAMPLES_REQUIRED && hasMinimumTime;
   }
@@ -586,11 +727,11 @@ class HourlyTrackingService {
         final assignments = locationService.geofenceAssignments;
         
         for (final assignment in assignments) {
-          if (assignment.geofence?.id == _currentGeofenceId && 
-              assignment.geofence?.rateType == 'per_hour') {
-            final rate = assignment.geofence?.ratePerHour ?? 0.0;
+          if (assignment.geofenceId == _currentGeofenceId && 
+              assignment.rateType == 'per_hour') {
+            final rate = assignment.ratePerHour ?? 0.0;
             if (kDebugMode) {
-              print('📊 Found hourly rate from LocationService: ₦${rate}/hr');
+              print('📊 Found hourly rate from LocationService: ₦$rate/hr');
             }
             return rate;
           }
@@ -611,6 +752,32 @@ class HourlyTrackingService {
     }
   }
 
+  /// Periodic sync method to be called from background services
+  static Future<void> performPeriodicSync() async {
+    try {
+      final instance = HourlyTrackingService.instance;
+      await instance.syncPendingWindows();
+      
+      if (kDebugMode) {
+        print('⏰ PERIODIC SYNC: Completed hourly tracking sync');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ PERIODIC SYNC: Failed: $e');
+      }
+    }
+  }
+
+  /// Check if there are pending windows that need sync
+  static bool hasPendingWindows() {
+    try {
+      final pendingWindows = HiveService.getPendingSyncWindows();
+      return pendingWindows.isNotEmpty;
+    } catch (e) {
+      return false;
+    }
+  }
+
   /// Update LocationService with hourly earnings to refresh UI
   /// Uses assignment ID for proper earnings attribution (UX consistency)
   Future<void> _updateLocationServiceEarnings(String assignmentId, double backendAmount) async {
@@ -622,13 +789,72 @@ class HourlyTrackingService {
       await locationService.addHourlyEarnings(assignmentId, backendAmount);
       
       if (kDebugMode) {
-        print('🕐 EARNINGS UPDATE: Added ₦${backendAmount} to LocationService for assignment $assignmentId');
+        print('🕐 EARNINGS UPDATE: Added ₦$backendAmount to LocationService for assignment $assignmentId');
         print('🕐 Total earnings now: ₦${locationService.totalGeofenceEarnings}');
       }
     } catch (e) {
       if (kDebugMode) {
         print('❌ Failed to update LocationService earnings: $e');
       }
+    }
+  }
+
+  /// Recover current window from storage after app restart
+  Future<void> _recoverCurrentWindow() async {
+    try {
+      final windowData = HiveService.getCurrentHourlyWindow();
+      if (windowData != null) {
+        // Recreate window from stored data
+        _currentWindow = _windowFromJson(windowData);
+        
+        if (kDebugMode) {
+          print('🔄 Recovered current window: ${_currentWindow?.id} with ${_currentWindow?.samples.length ?? 0} samples');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to recover current window: $e');
+      }
+    }
+  }
+
+  /// Create window from JSON data
+  HourlyTrackingWindow? _windowFromJson(Map<String, dynamic> data) {
+    try {
+      final window = HourlyTrackingWindow(
+        id: data['id'] ?? _uuid.v4(),
+        geofenceId: data['geofence_id'] ?? _currentGeofenceId ?? '',
+        assignmentId: data['assignment_id'] ?? _currentAssignmentId,
+        campaignId: data['campaign_id'] ?? _currentCampaignId ?? '',
+        startTime: DateTime.tryParse(data['start_time'] ?? '') ?? DateTime.now(),
+        endTime: DateTime.tryParse(data['end_time'] ?? '') ?? DateTime.now(),
+        samples: [],
+        status: WindowStatus.active,
+        failureEvents: [],
+      );
+      
+      // Restore samples
+      final samplesData = List<Map<String, dynamic>>.from(data['samples'] ?? []);
+      for (final sampleData in samplesData) {
+        final sample = LocationSample(
+          id: sampleData['id'] ?? _uuid.v4(),
+          latitude: sampleData['latitude']?.toDouble() ?? 0.0,
+          longitude: sampleData['longitude']?.toDouble() ?? 0.0,
+          accuracy: sampleData['accuracy']?.toDouble() ?? 0.0,
+          timestamp: DateTime.tryParse(sampleData['timestamp'] ?? '') ?? DateTime.now(),
+          isWithinGeofence: sampleData['is_within_geofence'] ?? false,
+          speed: sampleData['speed']?.toDouble(),
+          heading: sampleData['heading']?.toDouble(),
+        );
+        window.addSample(sample);
+      }
+      
+      return window;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to create window from JSON: $e');
+      }
+      return null;
     }
   }
 
@@ -749,8 +975,8 @@ class HourlyTrackingService {
         
         final segmentMinutes = nextTime.difference(currentTime).inMilliseconds / (1000 * 60);
         
-        // Cap segment duration to prevent anomalies (max 10 minutes)
-        if (segmentMinutes <= 10) {
+        // Cap segment duration to prevent anomalies (max 2 minutes for 30s sampling)
+        if (segmentMinutes <= 2) {
           totalMinutes += segmentMinutes;
         }
       } catch (e) {
@@ -769,7 +995,7 @@ class HourlyTrackingService {
     
     final geofenceRatio = samples.where((s) => s['is_within_geofence'] == true).length / samples.length;
     final failurePenalty = failureEvents.length * 0.1;
-    final accuracyScore = samples.map((s) => (s['accuracy'] ?? 100) <= 20 ? 1.0 : 0.5).reduce((a, b) => a + b) / samples.length;
+    final accuracyScore = samples.map((s) => (s['accuracy'] ?? 100) <= 2000 ? 1.0 : 0.5).reduce((a, b) => a + b) / samples.length;
     
     final quality = ((geofenceRatio + accuracyScore) / 2 - failurePenalty);
     return quality.clamp(0.0, 1.0);

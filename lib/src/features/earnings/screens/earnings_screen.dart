@@ -110,9 +110,9 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
+                    const Text(
                       'Campaign Earnings History',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
                         color: AppColors.textPrimary,
@@ -174,17 +174,7 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen> {
           ],
         ),
       ),
-      floatingActionButton: earningsOverview != null && earningsOverview.hasPendingPayments
-          ? FloatingActionButton.extended(
-              onPressed: () => _showPaymentRequestBottomSheet(context),
-              backgroundColor: AppColors.success,
-              icon: const Icon(Icons.payments, color: Colors.white),
-              label: const Text(
-                'Request Payment',
-                style: TextStyle(color: Colors.white),
-              ),
-            )
-          : null,
+      floatingActionButton: _buildFloatingActionButton(earningsOverview, isLoading),
     );
   }
 
@@ -489,6 +479,38 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen> {
             child: const Text('Submit'),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget? _buildFloatingActionButton(dynamic earningsOverview, bool isLoading) {
+    // Don't show FAB while loading to prevent layout issues
+    if (isLoading) {
+      return null;
+    }
+    
+    // Ensure earningsOverview is not null and has the required property
+    if (earningsOverview == null) {
+      return null;
+    }
+    
+    // Safely check for pending payments with additional null safety
+    try {
+      if (earningsOverview.hasPendingPayments != true) {
+        return null;
+      }
+    } catch (e) {
+      // If there's any error accessing the property, don't show FAB
+      return null;
+    }
+    
+    return FloatingActionButton.extended(
+      onPressed: () => _showPaymentRequestBottomSheet(context),
+      backgroundColor: AppColors.success,
+      icon: const Icon(Icons.payments, color: Colors.white),
+      label: const Text(
+        'Request Payment',
+        style: TextStyle(color: Colors.white),
       ),
     );
   }

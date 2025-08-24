@@ -84,10 +84,11 @@ class GeofenceEarningsCalculator {
         }
         return geofence.fixedDailyRate ?? 0.0;
       
-      case 'hybrid':
-        final kmEarnings = (geofence.ratePerKm ?? 0.0) * distanceKm;
-        final hourEarnings = (geofence.ratePerHour ?? 0.0) * hoursActive;
-        return kmEarnings + hourEarnings;
+      // Hybrid rate type removed for simplified tracking
+      // case 'hybrid':
+      //   final kmEarnings = (geofence.ratePerKm ?? 0.0) * distanceKm;
+      //   final hourEarnings = (geofence.ratePerHour ?? 0.0) * hoursActive;
+      //   return kmEarnings + hourEarnings;
       
       default:
         return 0.0;
@@ -134,13 +135,14 @@ class GeofenceEarningsCalculator {
         scenarios['optimistic'] = geofence.fixedDailyRate ?? 0.0;
         break;
         
-      case 'hybrid':
-        final baseKm = (geofence.ratePerKm ?? 0.0) * distanceKm;
-        final baseHour = (geofence.ratePerHour ?? 0.0) * hoursActive;
-        scenarios['conservative'] = (baseKm + baseHour) * 0.7;
-        scenarios['realistic'] = baseKm + baseHour;
-        scenarios['optimistic'] = (baseKm + baseHour) * 1.3;
-        break;
+      // Hybrid rate type removed for simplified tracking
+      // case 'hybrid':
+      //   final baseKm = (geofence.ratePerKm ?? 0.0) * distanceKm;
+      //   final baseHour = (geofence.ratePerHour ?? 0.0) * hoursActive;
+      //   scenarios['conservative'] = (baseKm + baseHour) * 0.7;
+      //   scenarios['realistic'] = baseKm + baseHour;
+      //   scenarios['optimistic'] = (baseKm + baseHour) * 1.3;
+      //   break;
     }
     
     return scenarios;
@@ -248,8 +250,8 @@ class GeofenceEarningsCalculator {
     // Assume 50km is the target daily distance for per_km rates
     const targetDistanceKm = 50.0;
     
-    if (geofence.rateType != 'per_km' && geofence.rateType != 'hybrid') {
-      return 1.0; // Distance doesn't matter for these rate types
+    if (geofence.rateType != 'per_km') {
+      return 1.0; // Distance doesn't matter for non-per_km rate types
     }
     
     return actualDistanceKm / targetDistanceKm;

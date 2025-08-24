@@ -83,7 +83,7 @@ class EarningsSummaryCard extends StatelessWidget {
               Expanded(
                 child: _buildTrendItem(
                   'This Week',
-                  overview.formattedPendingEarnings,
+                  '₦${overview.thisWeekEarnings.toStringAsFixed(0)}',
                   overview.weeklyGrowthPercentage,
                   overview.isWeeklyGrowing,
                 ),
@@ -113,7 +113,7 @@ class EarningsSummaryCard extends StatelessWidget {
               ),
               _buildStatItem(
                 Icons.route,
-                '${overview.totalDistanceCovered.toStringAsFixed(0)}',
+                overview.totalDistanceCovered.toStringAsFixed(0),
                 'KM',
               ),
               _buildStatItem(
@@ -150,15 +150,19 @@ class EarningsSummaryCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                amount,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+              Flexible(
+                child: Text(
+                  amount,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               if (growthPercentage.abs() > 0.1) ...[
+                const SizedBox(width: 4),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(

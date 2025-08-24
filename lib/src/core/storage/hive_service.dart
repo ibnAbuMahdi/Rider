@@ -474,10 +474,20 @@ class HiveService {
 
   // Hourly tracking window storage methods
   static Future<void> saveHourlyTrackingWindow(dynamic window) async {
-    // For now, use dynamic type since we don't have HourlyTrackingWindow Hive adapter
-    // In a full implementation, this would store to a proper Hive box
-    // Store as JSON in settings for simplicity
-    await _settingsBox.put('current_hourly_window', window.toString());
+    try {
+      if (!_isInitialized) await initialize();
+      
+      final windowData = _windowToJson(window);
+      await _settingsBox.put('current_hourly_window', windowData);
+      
+      if (kDebugMode) {
+        print('💾 Saved current hourly window: ${windowData['id']}');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to save current hourly window: $e');
+      }
+    }
   }
 
   static Future<void> saveCompletedHourlyWindow(dynamic window) async {
@@ -596,7 +606,40 @@ class HiveService {
       }
     }
   }
-  
+
+  /// Get current hourly tracking window
+  static Map<String, dynamic>? getCurrentHourlyWindow() {
+    try {
+      if (!_isInitialized) return null;
+      
+      final windowData = _settingsBox.get('current_hourly_window');
+      return windowData != null ? Map<String, dynamic>.from(windowData) : null;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to get current hourly window: $e');
+      }
+      return null;
+    }
+  }
+
+  /// Clear current hourly tracking window
+  static Future<void> clearCurrentHourlyWindow() async {
+    try {
+      if (!_isInitialized) await initialize();
+      
+      await _settingsBox.delete('current_hourly_window');
+      
+      if (kDebugMode) {
+        print('🗑️ Cleared current hourly window');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to clear current hourly window: $e');
+      }
+    }
+  }
+
+  /// Cleanup old synced windows to save storage space
   static Future<void> cleanupSyncedWindows() async {
     try {
       final allWindows = getCompletedHourlyWindows();
@@ -669,6 +712,20 @@ class HiveService {
       }
       return {'id': 'error', 'error': e.toString()};
     }
+  }
+
+  // Signup context methods for new auth flow
+  static Future<void> saveSignupContext(Map<String, dynamic> context) async {
+    await _settingsBox.put('signup_context', context);
+  }
+
+  static Map<String, dynamic>? getSignupContext() {
+    final context = _settingsBox.get('signup_context');
+    return context is Map ? Map<String, dynamic>.from(context) : null;
+  }
+
+  static Future<void> clearSignupContext() async {
+    await _settingsBox.delete('signup_context');
   }
 
 }

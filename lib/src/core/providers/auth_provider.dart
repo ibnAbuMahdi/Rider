@@ -53,6 +53,61 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  // === NEW FLEXIBLE AUTH METHODS ===
+
+  /// Combined signup with phone + optional plate
+  Future<bool> signup({required String phone, String? plate}) async {
+    state = state.copyWith(isLoading: true, error: null);
+    
+    try {
+      final result = await _authService.signup(phone: phone, plate: plate);
+      
+      if (result.success) {
+        state = state.copyWith(isLoading: false);
+        return true;
+      } else {
+        state = state.copyWith(
+          isLoading: false,
+          error: result.error,
+        );
+        return false;
+      }
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: e.toString(),
+      );
+      return false;
+    }
+  }
+
+  /// Send login OTP for phone or plate number
+  Future<bool> sendLoginOTP(String identifier) async {
+    state = state.copyWith(isLoading: true, error: null);
+    
+    try {
+      final result = await _authService.sendLoginOTP(identifier);
+      
+      if (result.success) {
+        state = state.copyWith(isLoading: false);
+        return true;
+      } else {
+        state = state.copyWith(
+          isLoading: false,
+          error: result.error,
+        );
+        return false;
+      }
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: e.toString(),
+      );
+      return false;
+    }
+  }
+
+  /// Legacy OTP sending method for backward compatibility
   Future<void> sendOTP(String phoneNumber) async {
     state = state.copyWith(isLoading: true, error: null);
     
@@ -67,6 +122,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  /// Enhanced OTP verification with signup completion handling
   Future<bool> verifyOTP(String phoneNumber, String otp) async {
     state = state.copyWith(isLoading: true, error: null);
     
@@ -74,18 +130,23 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final result = await _authService.verifyOTP(phoneNumber, otp);
       
       if (result.success) {
-        await HiveService.saveAuthToken(result.token!);
-        await HiveService.saveUserId(result.rider!.id);
-        await HiveService.saveRider(result.rider!);
+        // Tokens are already saved by AuthService
+        if (result.rider != null) {
+          await HiveService.saveUserId(result.rider!.id);
+          await HiveService.saveRider(result.rider!);
+        }
         
         if (kDebugMode) {
-          print('🎯 AUTH SUCCESS: Saved rider data');
-          print('🎯 AUTH: Rider ID: ${result.rider!.id}');
-          print('🎯 AUTH: Rider Phone: ${result.rider!.phoneNumber}');
-          print('🎯 AUTH: Current Campaign ID: ${result.rider!.currentCampaignId}');
-          print('🎯 AUTH: Has Completed Onboarding: ${result.rider!.hasCompletedOnboarding}');
-          print('🎯 AUTH: Is Active: ${result.rider!.isActive}');
-          print('🎯 AUTH: Status: ${result.rider!.status}');
+          print('🎯 AUTH SUCCESS: ${result.sessionType} completed');
+          print('🎯 AUTH: Is New User: ${result.isNewUser}');
+          if (result.rider != null) {
+            print('🎯 AUTH: Rider ID: ${result.rider!.id}');
+            print('🎯 AUTH: Rider Phone: ${result.rider!.phoneNumber}');
+            print('🎯 AUTH: Current Campaign ID: ${result.rider!.currentCampaignId}');
+            print('🎯 AUTH: Has Completed Onboarding: ${result.rider!.hasCompletedOnboarding}');
+            print('🎯 AUTH: Is Active: ${result.rider!.isActive}');
+            print('🎯 AUTH: Status: ${result.rider!.status}');
+          }
         }
         
         state = state.copyWith(
@@ -94,13 +155,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
           rider: result.rider,
         );
         
+        // Handle post-auth actions based on session type
+        if (result.sessionType == 'signup') {
+          _handleSignupCompletion(result.rider);
+        }
+        
         // Trigger my-campaigns refresh to get geofence assignments
-        // This is crucial for geofence-aware random verification
         if (kDebugMode) {
           print('🎯 AUTH SUCCESS: Triggering my-campaigns refresh to load geofence assignments');
         }
-        // Note: We'll trigger this through a provider ref in the calling widget
-        // since we can't directly access other providers from here
         
         return true;
       } else {
@@ -116,6 +179,21 @@ class AuthNotifier extends StateNotifier<AuthState> {
         error: e.toString(),
       );
       return false;
+    }
+  }
+
+  void _handleSignupCompletion(Rider? rider) {
+    // Additional logic for new user onboarding
+    if (rider?.plateNumber != null) {
+      // User signed up with plate - they're ready to ride
+      if (kDebugMode) {
+        print('🎯 New user with plate number - ready to ride');
+      }
+    } else {
+      // User signed up with phone only - may need plate activation later
+      if (kDebugMode) {
+        print('🎯 New user with phone only - may need plate activation');
+      }
     }
   }
 

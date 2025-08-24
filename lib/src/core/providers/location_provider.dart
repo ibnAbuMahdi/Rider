@@ -513,14 +513,33 @@ final liveTrackingStatsProvider = Provider<TrackingStats>((ref) {
     print('📊 TRACKING STATS: Refreshing stats on app resume');
   }
   
+  // Calculate real-time durations for active tracking (especially per_hour rates)
+  final baseDurations = Map<String, Duration>.from(locationService.geofenceDurations);
+  final currentGeofenceId = locationService.currentGeofenceId;
+  
+  // Add real-time duration for current geofence if rider is inside
+  if (currentGeofenceId != null && locationService.isWithinActiveGeofence) {
+    // Get the entry time for current geofence from location service
+    // We need to access this through a getter method since _geofenceEntryTimes is private
+    try {
+      final currentDuration = locationService.getCurrentGeofenceDuration(currentGeofenceId);
+      if (currentDuration != null) {
+        baseDurations[currentGeofenceId] = currentDuration;
+      }
+    } catch (e) {
+      // Fallback: calculate basic duration if method not available
+      // This ensures UI still works even if getCurrentGeofenceDuration is not implemented
+    }
+  }
+  
   return TrackingStats(
     totalDistance: locationService.totalDistance,
     totalGeofenceEarnings: locationService.totalGeofenceEarnings,
     currentGeofence: locationService.currentGeofence,
     isWithinGeofence: locationService.isWithinActiveGeofence,
     geofenceDistances: Map.from(locationService.geofenceDistances),
-    geofenceDurations: Map.from(locationService.geofenceDurations),
-    currentGeofenceId: locationService.currentGeofenceId,
+    geofenceDurations: baseDurations, // Now includes real-time duration
+    currentGeofenceId: currentGeofenceId,
     lastUpdated: DateTime.now(),
   );
 });

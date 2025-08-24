@@ -88,6 +88,7 @@ class _AddBankAccountScreenState extends ConsumerState<AddBankAccountScreen> {
         child: Form(
           key: _formKey,
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _buildHeader(),
@@ -231,11 +232,13 @@ class _AddBankAccountScreenState extends ConsumerState<AddBankAccountScreen> {
           ),
           validator: ref.read(bankFormValidationProvider).validateAccountNumber,
           onChanged: (value) {
-            // Clear validation when user changes account number
-            if (_validationResult != null) {
-              setState(() {
+            // Clear validation when user changes account number and update button state
+            setState(() {
+              if (_validationResult != null) {
                 _validationResult = null;
-              });
+              }
+            });
+            if (_validationResult != null) {
               ref.read(bankValidationProvider.notifier).clearValidation();
             }
           },
@@ -465,6 +468,7 @@ class _AddBankAccountScreenState extends ConsumerState<AddBankAccountScreen> {
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(

@@ -12,11 +12,19 @@ class AppConstants {
   // Full API endpoints
   static String get apiBaseUrl => '$baseUrl/api/$apiVersion';
   
-  // Authentication Endpoints - ADDED FOR KUDISMS
-  static const String sendOtpEndpoint = '/auth/send-otp/';
+  // Authentication Endpoints - Enhanced with flexible auth
+  static const String signupEndpoint = '/auth/signup/';
+  static const String loginEndpoint = '/auth/login/';
   static const String verifyOtpEndpoint = '/auth/verify-otp/';
+  static const String resendOtpEndpoint = '/auth/resend-otp/';
+  static const String addPlateEndpoint = '/auth/add-plate/';
+  static const String checkIdentifierEndpoint = '/auth/check-identifier/';
   static const String refreshTokenEndpoint = '/auth/refresh/';
   static const String logoutEndpoint = '/auth/logout/';
+  
+  // Legacy endpoints (for backward compatibility)
+  static const String sendOtpEndpoint = '/auth/send-otp/';
+  static const String verifyOtpLegacyEndpoint = '/auth/verify-otp-legacy/';
   
   // Storage Keys
   static const String authTokenKey = 'auth_token';
@@ -103,12 +111,32 @@ class AppConstants {
   static const String defaultLanguage = 'en';
   static const String pidginLanguage = 'pcm'; // Pidgin English
   
-  // Valid Nigerian mobile prefixes - UPDATED
+  // Valid Nigerian mobile prefixes - COMPREHENSIVE LIST (matches backend)
   static const List<String> validNigerianPrefixes = [
-    '803', '806', '813', '814', '816', '903', '906', // MTN
-    '802', '808', '812', '701', '902', '904', '907', '912', // Airtel
-    '805', '807', '815', '811', '905', // Glo
-    '809', '818', '817', '908', '909', // 9mobile
+    // MTN
+    '703', '706', '803', '806', '810', '813', '814', '816', '903', '906', '913',
+    
+    // Airtel  
+    '701', '802', '808', '812', '901', '902', '904', '907', '912',
+    
+    // Glo
+    '705', '805', '807', '811', '815', '905',
+    
+    // 9mobile (Etisalat)
+    '809', '817', '818', '908', '909',
+    
+    // Ntel
+    '714', '718',
+    
+    // Additional valid prefixes to ensure comprehensive coverage
+    '702', '704', '707', '708', '709', '804', '815', '819',
+    '915', '916', '917',
+    
+    // Legacy/older prefixes that might still be in use
+    '800', '801', '805', '820', '821', '822', '823', '824', '825',
+    '826', '827', '828', '829', '830', '831', '832', '833', '834',
+    '835', '836', '837', '838', '839', '870', '871', '872', '873',
+    '874', '875', '876', '877', '878', '879',
   ];
   
   // Lagos coordinates (default center)

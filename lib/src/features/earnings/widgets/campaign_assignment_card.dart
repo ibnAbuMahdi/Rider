@@ -241,7 +241,7 @@ class CampaignAssignmentCard extends StatelessWidget {
   }
 
   Widget _buildPlaceholderIcon() {
-    return Icon(
+    return const Icon(
       Icons.location_on,
       color: AppColors.primary,
       size: 24,

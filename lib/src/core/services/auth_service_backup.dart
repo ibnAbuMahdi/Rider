@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../models/rider.dart';
 import '../constants/app_constants.dart';
 import 'api_service.dart';
-import '../storage/hive_service.dart';
+import '../storage/hive_service.dart'; // Updated import
 
 class AuthResult {
   final bool success;
@@ -116,48 +116,29 @@ class AuthService {
     try {
       final formattedPhone = _formatPhoneNumber(phoneNumber);
       
-      if (kDebugMode) {
-        print('🔄 Resending OTP to: $formattedPhone');
-      }
-
-      final response = await _apiService.post(AppConstants.resendOtpEndpoint, data: {
-        'phone_number': formattedPhone,
-      });
-
-      if (response.statusCode == 200) {
-        final data = response.data;
-        
-        if (kDebugMode) {
-          print('✅ OTP resent successfully: $data');
-        }
-        
-        return OTPResult(
-          success: true,
-          expiresInMinutes: data['expires_in_minutes'] ?? 5,
-        );
-      } else {
-        final data = response.data;
-        return OTPResult(
+      // Check if we can resend (rate limiting)
+      if (HiveService.isOTPRateLimited(formattedPhone)) {
+        return const OTPResult(
           success: false,
-          error: data['message'] ?? 'Failed to resend code',
-          errorCode: data['code'] ?? 'RESEND_FAILED',
+          error: 'Please wait 60 seconds before requesting again',
+          errorCode: 'RATE_LIMITED',
         );
       }
-    } on ApiException catch (e) {
-      return _handleOTPError(e);
+
+      // Store timestamp for rate limiting
+      await HiveService.setOTPRateLimit(formattedPhone);
+
+      return await sendOTP(phoneNumber);
     } catch (e) {
-      if (kDebugMode) {
-        print('❌ Resend OTP error: $e');
-      }
       return OTPResult(
         success: false,
         error: 'Failed to resend code: $e',
-        errorCode: 'RESEND_ERROR',
+        errorCode: 'RESEND_FAILED',
       );
     }
   }
 
-  /// Verify OTP and authenticate user (supports phone_number OR identifier)
+  /// Verify OTP and authenticate user
   Future<AuthResult> verifyOTP(String phoneNumber, String otp) async {
     try {
       final formattedPhone = _formatPhoneNumber(phoneNumber);
@@ -194,7 +175,7 @@ class AuthService {
         _otpCache[formattedPhone]!['attempts'] = attempts + 1;
       }
 
-      // Verify with backend (for signup flow - uses phone_number)
+      // Verify with backend
       final response = await _apiService.post(AppConstants.verifyOtpEndpoint, data: {
         'phone_number': formattedPhone,
         'otp': otp,
@@ -226,7 +207,6 @@ class AuthService {
           refreshToken: data['refresh'] ?? data['refresh_token'],
           rider: data['rider'] != null ? Rider.fromJson(data['rider']) : null,
           isNewUser: data['is_new_user'] ?? false,
-          sessionType: data['is_new_user'] == true ? 'signup' : 'login',
         );
       } else {
         return const AuthResult(
@@ -432,296 +412,6 @@ class AuthService {
         errorCode: 'ACTIVATION_ERROR',
       );
     }
-  }
-
-  // === NEW FLEXIBLE AUTH METHODS ===
-
-  /// Combined signup with phone + optional plate number
-  Future<AuthResult> signup({
-    required String phone,
-    String? plate,
-  }) async {
-    try {
-      final formattedPhone = _formatPhoneNumber(phone);
-      
-      // Validate phone number
-      if (!isValidNigerianPhone(formattedPhone)) {
-        return const AuthResult(
-          success: false,
-          error: 'Please enter a valid Nigerian phone number',
-          errorCode: 'INVALID_PHONE',
-        );
-      }
-
-      // Validate plate number if provided
-      if (plate != null && plate.isNotEmpty && !_isValidPlateNumber(plate)) {
-        return const AuthResult(
-          success: false,
-          error: 'Invalid plate number format. Use format ABC123DD',
-          errorCode: 'INVALID_PLATE_FORMAT',
-        );
-      }
-
-      if (kDebugMode) {
-        print('🔧 Starting signup for phone: $formattedPhone, plate: $plate');
-      }
-
-      final response = await _apiService.post(AppConstants.signupEndpoint, data: {
-        'phone_number': formattedPhone,
-        if (plate != null && plate.isNotEmpty) 'plate_number': plate.toUpperCase(),
-      });
-
-      if (response.statusCode == 201) {
-        final data = response.data;
-        
-        if (kDebugMode) {
-          print('✅ Signup initiated successfully: $data');
-        }
-        
-        return const AuthResult(
-          success: true,
-          isNewUser: true,
-          sessionType: 'signup',
-        );
-      } else {
-        final data = response.data;
-        return AuthResult(
-          success: false,
-          error: data['message'] ?? 'Signup failed',
-          errorCode: data['code'] ?? 'SIGNUP_FAILED',
-        );
-      }
-    } on ApiException catch (e) {
-      return _handleAuthError(e);
-    } catch (e) {
-      if (kDebugMode) {
-        print('❌ Signup error: $e');
-      }
-      return AuthResult(
-        success: false,
-        error: 'Signup failed: $e',
-        errorCode: 'SIGNUP_ERROR',
-      );
-    }
-  }
-
-  /// Login with phone number or plate number
-  Future<OTPResult> sendLoginOTP(String identifier) async {
-    try {
-      if (kDebugMode) {
-        print('🔐 Attempting login with identifier: $identifier');
-      }
-
-      final response = await _apiService.post(AppConstants.loginEndpoint, data: {
-        'identifier': identifier.trim(),
-      });
-
-      if (response.statusCode == 200) {
-        final data = response.data;
-        
-        if (kDebugMode) {
-          print('✅ Login OTP sent: $data');
-        }
-        
-        return OTPResult(
-          success: true,
-          expiresInMinutes: data['expires_in_minutes'] ?? 5,
-        );
-      } else {
-        final data = response.data;
-        return OTPResult(
-          success: false,
-          error: data['message'] ?? 'Login failed',
-          errorCode: data['code'] ?? 'LOGIN_FAILED',
-        );
-      }
-    } on ApiException catch (e) {
-      if (e.statusCode == 404) {
-        return const OTPResult(
-          success: false, 
-          error: 'Account not found',
-          errorCode: 'ACCOUNT_NOT_FOUND',
-        );
-      }
-      return _handleOTPError(e);
-    } catch (e) {
-      if (kDebugMode) {
-        print('❌ Login error: $e');
-      }
-      return OTPResult(
-        success: false,
-        error: 'Login failed: $e',
-        errorCode: 'LOGIN_ERROR',
-      );
-    }
-  }
-
-  /// Verify login OTP with identifier (for login flow with phone or plate number)
-  Future<AuthResult> verifyLoginOTP(String identifier, String otp) async {
-    try {
-      // Validate OTP format (4 digits)
-      if (otp.length != AppConstants.otpLength || !RegExp(r'^\d{4}$').hasMatch(otp)) {
-        return const AuthResult(
-          success: false,
-          error: 'Please enter a valid ${AppConstants.otpLength}-digit code',
-          errorCode: 'INVALID_OTP_FORMAT',
-        );
-      }
-
-      if (kDebugMode) {
-        print('🔐 Verifying login OTP: $otp for identifier: $identifier');
-      }
-
-      // Verify with backend (for login flow - uses identifier)
-      final response = await _apiService.post(AppConstants.verifyOtpEndpoint, data: {
-        'identifier': identifier.trim(),
-        'otp': otp,
-        'device_info': await _getDeviceInfo(),
-      });
-
-      if (response.statusCode == 200) {
-        final data = response.data;
-        
-        if (kDebugMode) {
-          print('✅ Login OTP verified successfully: $data');
-        }
-        
-        // Store auth tokens - using correct response keys
-        await HiveService.saveAuthToken(data['access'] ?? data['access_token']);
-        await HiveService.saveRefreshToken(data['refresh'] ?? data['refresh_token']);
-        
-        // Store rider data
-        if (data['rider'] != null) {
-          await HiveService.saveRiderData(jsonEncode(data['rider']));
-        }
-        
-        return AuthResult(
-          success: true,
-          token: data['access'] ?? data['access_token'],
-          refreshToken: data['refresh'] ?? data['refresh_token'],
-          rider: data['rider'] != null ? Rider.fromJson(data['rider']) : null,
-          isNewUser: data['is_new_user'] ?? false,
-          sessionType: 'login',
-        );
-      } else {
-        return const AuthResult(
-          success: false,
-          error: 'Invalid verification code',
-          errorCode: 'INVALID_OTP',
-        );
-      }
-    } on ApiException catch (e) {
-      return _handleAuthError(e);
-    } catch (e) {
-      if (kDebugMode) {
-        print('❌ Verify login OTP error: $e');
-      }
-      return AuthResult(
-        success: false,
-        error: 'Login verification failed: $e',
-        errorCode: 'LOGIN_VERIFICATION_FAILED',
-      );
-    }
-  }
-
-  /// Add plate number to existing phone-only account
-  Future<AuthResult> addPlateNumber(String plateNumber) async {
-    try {
-      if (!_isValidPlateNumber(plateNumber)) {
-        return const AuthResult(
-          success: false,
-          error: 'Invalid plate number format. Use format ABC123DD',
-          errorCode: 'INVALID_PLATE_FORMAT',
-        );
-      }
-
-      if (kDebugMode) {
-        print('🚗 Adding plate number: $plateNumber');
-      }
-
-      final response = await _apiService.post(AppConstants.addPlateEndpoint, data: {
-        'plate_number': plateNumber.toUpperCase(),
-      });
-
-      if (response.statusCode == 200) {
-        final data = response.data;
-        
-        if (kDebugMode) {
-          print('✅ Plate number added successfully: $data');
-        }
-        
-        // Update stored rider data
-        if (data['rider'] != null) {
-          await HiveService.saveRiderData(jsonEncode(data['rider']));
-        }
-        
-        return AuthResult(
-          success: true,
-          rider: data['rider'] != null ? Rider.fromJson(data['rider']) : null,
-        );
-      } else {
-        final data = response.data;
-        return AuthResult(
-          success: false,
-          error: data['message'] ?? 'Failed to add plate number',
-          errorCode: data['code'] ?? 'ADD_PLATE_FAILED',
-        );
-      }
-    } on ApiException catch (e) {
-      return _handleAuthError(e);
-    } catch (e) {
-      if (kDebugMode) {
-        print('❌ Add plate number error: $e');
-      }
-      return AuthResult(
-        success: false,
-        error: 'Failed to add plate number: $e',
-        errorCode: 'ADD_PLATE_ERROR',
-      );
-    }
-  }
-
-  // === UTILITY METHODS ===
-
-  /// Check if input is a valid phone number format
-  bool isPhoneNumber(String input) {
-    if (input.isEmpty) return false;
-    
-    // Remove all non-digit characters except +
-    final cleaned = input.replaceAll(RegExp(r'[^\d+]'), '');
-    
-    // Check various Nigerian phone number formats - FIXED TO BE MORE FLEXIBLE
-    final patterns = [
-      r'^\+234[789]\d{9}$',     // +234XXXXXXXXXX (any 10 digits after +234 starting with 7,8,9)
-      r'^234[789]\d{9}$',       // 234XXXXXXXXXX
-      r'^0[789]\d{9}$',         // 0XXXXXXXXXX (11 digits starting with 07,08,09)
-      r'^[789]\d{9}$',          // XXXXXXXXXX (10 digits starting with 7,8,9)
-    ];
-    
-    return patterns.any((pattern) => RegExp(pattern).hasMatch(cleaned));
-  }
-
-  /// Check if input is a valid plate number format
-  bool isPlateNumber(String input) {
-    if (input.isEmpty) return false;
-    
-    // Remove spaces and convert to uppercase
-    final cleaned = input.replaceAll(' ', '').toUpperCase();
-    
-    // Nigerian plate format: ABC123DD (3 letters, 3 numbers, 2 letters)
-    return RegExp(r'^[A-Z]{3}[0-9]{3}[A-Z]{2}$').hasMatch(cleaned);
-  }
-
-  /// Get input type for validation feedback
-  String getInputType(String input) {
-    if (isPhoneNumber(input)) return 'phone';
-    if (isPlateNumber(input)) return 'plate';
-    
-    // Check partial patterns for UI feedback
-    if (input.startsWith('0') || input.startsWith('+')) return 'phone_partial';
-    if (RegExp(r'^[A-Za-z]{1,3}[0-9]*[A-Za-z]*$').hasMatch(input)) return 'plate_partial';
-    
-    return 'unknown';
   }
 
   /// Validate plate number format (Nigerian format: ABC123DD)
@@ -982,5 +672,345 @@ class AuthService {
       error: 'Network error. Please check your connection.',
       errorCode: 'NETWORK_ERROR',
     );
+  }
+
+  // === NEW FLEXIBLE AUTH METHODS ===
+
+  /// Combined signup with phone + optional plate number
+  Future<AuthResult> signup({
+    required String phone,
+    String? plate,
+  }) async {
+    try {
+      final formattedPhone = _formatPhoneNumber(phone);
+      
+      // Validate phone number
+      if (!isValidNigerianPhone(formattedPhone)) {
+        return const AuthResult(
+          success: false,
+          error: 'Please enter a valid Nigerian phone number',
+          errorCode: 'INVALID_PHONE',
+        );
+      }
+
+      // Validate plate number if provided
+      if (plate != null && plate.isNotEmpty && !_isValidPlateNumber(plate)) {
+        return const AuthResult(
+          success: false,
+          error: 'Invalid plate number format. Use format ABC123DD',
+          errorCode: 'INVALID_PLATE_FORMAT',
+        );
+      }
+
+      if (kDebugMode) {
+        print('🔧 Starting signup for phone: $formattedPhone, plate: $plate');
+      }
+
+      final response = await _apiService.post(AppConstants.signupEndpoint, data: {
+        'phone_number': formattedPhone,
+        if (plate != null && plate.isNotEmpty) 'plate_number': plate.toUpperCase(),
+      });
+
+      if (response.statusCode == 201) {
+        final data = response.data;
+        
+        if (kDebugMode) {
+          print('✅ Signup initiated successfully: $data');
+        }
+        
+        // Store signup context for OTP verification
+        await HiveService.saveSignupContext({
+          'phone_number': formattedPhone,
+          'plate_number': plate,
+          'session_type': 'signup',
+          'timestamp': DateTime.now().toIso8601String(),
+        });
+        
+        return const AuthResult(
+          success: true,
+          isNewUser: true,
+          sessionType: 'signup',
+        );
+      } else {
+        final data = response.data;
+        return AuthResult(
+          success: false,
+          error: data['message'] ?? 'Signup failed',
+          errorCode: data['code'] ?? 'SIGNUP_FAILED',
+        );
+      }
+    } on ApiException catch (e) {
+      return _handleAuthError(e);
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Signup error: $e');
+      }
+      return AuthResult(
+        success: false,
+        error: 'Signup failed: $e',
+        errorCode: 'SIGNUP_ERROR',
+      );
+    }
+  }
+
+  /// Login with phone number or plate number
+  Future<OTPResult> sendLoginOTP(String identifier) async {
+    try {
+      if (kDebugMode) {
+        print('🔐 Attempting login with identifier: $identifier');
+      }
+
+      final response = await _apiService.post(AppConstants.loginEndpoint, data: {
+        'identifier': identifier.trim(),
+      });
+
+      if (response.statusCode == 200) {
+        final data = response.data;
+        
+        if (kDebugMode) {
+          print('✅ Login OTP sent: $data');
+        }
+        
+        // Store login context
+        await HiveService.saveSignupContext({
+          'session_type': 'login',
+          'identifier': identifier,
+          'timestamp': DateTime.now().toIso8601String(),
+        });
+        
+        return OTPResult(
+          success: true,
+          expiresInMinutes: data['expires_in_minutes'] ?? 5,
+        );
+      } else {
+        final data = response.data;
+        return OTPResult(
+          success: false,
+          error: data['message'] ?? 'Login failed',
+          errorCode: data['code'] ?? 'LOGIN_FAILED',
+        );
+      }
+    } on ApiException catch (e) {
+      if (e.statusCode == 404) {
+        return const OTPResult(
+          success: false, 
+          error: 'Account not found',
+          errorCode: 'ACCOUNT_NOT_FOUND',
+        );
+      }
+      return _handleOTPError(e);
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Login error: $e');
+      }
+      return OTPResult(
+        success: false,
+        error: 'Login failed: $e',
+        errorCode: 'LOGIN_ERROR',
+      );
+    }
+  }
+
+
+  /// Resend OTP with enhanced rate limiting
+  Future<OTPResult> resendOTP(String phoneNumber) async {
+    try {
+      final formattedPhone = _formatPhoneNumber(phoneNumber);
+      
+      if (kDebugMode) {
+        print('🔄 Resending OTP to: $formattedPhone');
+      }
+
+      final response = await _apiService.post(AppConstants.resendOtpEndpoint, data: {
+        'phone_number': formattedPhone,
+      });
+
+      if (response.statusCode == 200) {
+        final data = response.data;
+        
+        if (kDebugMode) {
+          print('✅ OTP resent successfully: $data');
+        }
+        
+        return OTPResult(
+          success: true,
+          expiresInMinutes: data['expires_in_minutes'] ?? 5,
+        );
+      } else {
+        final data = response.data;
+        return OTPResult(
+          success: false,
+          error: data['message'] ?? 'Failed to resend code',
+          errorCode: data['code'] ?? 'RESEND_FAILED',
+        );
+      }
+    } on ApiException catch (e) {
+      return _handleOTPError(e);
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Resend OTP error: $e');
+      }
+      return OTPResult(
+        success: false,
+        error: 'Failed to resend code: $e',
+        errorCode: 'RESEND_ERROR',
+      );
+    }
+  }
+
+  /// Add plate number to existing phone-only account
+  Future<AuthResult> addPlateNumber(String plateNumber) async {
+    try {
+      if (!_isValidPlateNumber(plateNumber)) {
+        return const AuthResult(
+          success: false,
+          error: 'Invalid plate number format. Use format ABC123DD',
+          errorCode: 'INVALID_PLATE_FORMAT',
+        );
+      }
+
+      if (kDebugMode) {
+        print('🚗 Adding plate number: $plateNumber');
+      }
+
+      final response = await _apiService.post(AppConstants.addPlateEndpoint, data: {
+        'plate_number': plateNumber.toUpperCase(),
+      });
+
+      if (response.statusCode == 200) {
+        final data = response.data;
+        
+        if (kDebugMode) {
+          print('✅ Plate number added successfully: $data');
+        }
+        
+        // Update stored rider data
+        if (data['rider'] != null) {
+          await HiveService.saveRiderData(jsonEncode(data['rider']));
+        }
+        
+        return AuthResult(
+          success: true,
+          rider: data['rider'] != null ? Rider.fromJson(data['rider']) : null,
+        );
+      } else {
+        final data = response.data;
+        return AuthResult(
+          success: false,
+          error: data['message'] ?? 'Failed to add plate number',
+          errorCode: data['code'] ?? 'ADD_PLATE_FAILED',
+        );
+      }
+    } on ApiException catch (e) {
+      return _handleAuthError(e);
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Add plate number error: $e');
+      }
+      return AuthResult(
+        success: false,
+        error: 'Failed to add plate number: $e',
+        errorCode: 'ADD_PLATE_ERROR',
+      );
+    }
+  }
+
+  /// Check if identifier (phone/plate) exists
+  Future<bool> checkIdentifierExists(String identifier) async {
+    try {
+      final response = await _apiService.get(
+        '${AppConstants.checkIdentifierEndpoint}?identifier=${Uri.encodeComponent(identifier)}',
+      );
+
+      if (response.statusCode == 200) {
+        final data = response.data;
+        return data['exists'] == true;
+      }
+      
+      return false;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Check identifier error: $e');
+      }
+      return false;
+    }
+  }
+
+  /// Enhanced logout with refresh token blacklisting
+  @override
+  Future<void> logout() async {
+    try {
+      // Get refresh token for logout
+      final refreshToken = HiveService.getRefreshToken();
+      
+      // Notify backend about logout
+      if (refreshToken != null) {
+        await _apiService.post(AppConstants.logoutEndpoint, data: {
+          'refresh': refreshToken,
+        });
+      }
+      
+      if (kDebugMode) {
+        print('✅ Logout API call successful');
+      }
+    } catch (e) {
+      // Ignore logout errors - clear local data anyway
+      if (kDebugMode) {
+        print('⚠️ Logout API call failed: $e');
+      }
+    } finally {
+      // Clear all stored auth data
+      await HiveService.clearAuthData();
+      
+      // Clear OTP cache
+      _otpCache.clear();
+      
+      if (kDebugMode) {
+        print('🧹 Auth data cleared locally');
+      }
+    }
+  }
+
+  // === UTILITY METHODS ===
+
+  /// Check if input is a valid phone number format
+  bool isPhoneNumber(String input) {
+    if (input.isEmpty) return false;
+    
+    // Remove all non-digit characters except +
+    final cleaned = input.replaceAll(RegExp(r'[^\d+]'), '');
+    
+    // Check various Nigerian phone number formats
+    final patterns = [
+      r'^\+234[789][01]\d{8}$',  // +2348012345678
+      r'^234[789][01]\d{8}$',   // 2348012345678
+      r'^0[789][01]\d{8}$',     // 08012345678
+      r'^[789][01]\d{8}$',      // 8012345678
+    ];
+    
+    return patterns.any((pattern) => RegExp(pattern).hasMatch(cleaned));
+  }
+
+  /// Check if input is a valid plate number format
+  bool isPlateNumber(String input) {
+    if (input.isEmpty) return false;
+    
+    // Remove spaces and convert to uppercase
+    final cleaned = input.replaceAll(' ', '').toUpperCase();
+    
+    // Nigerian plate format: ABC123DD (3 letters, 3 numbers, 2 letters)
+    return RegExp(r'^[A-Z]{3}[0-9]{3}[A-Z]{2}$').hasMatch(cleaned);
+  }
+
+  /// Get input type for validation feedback
+  String getInputType(String input) {
+    if (isPhoneNumber(input)) return 'phone';
+    if (isPlateNumber(input)) return 'plate';
+    
+    // Check partial patterns for UI feedback
+    if (input.startsWith('0') || input.startsWith('+')) return 'phone_partial';
+    if (RegExp(r'^[A-Za-z]{1,3}[0-9]*[A-Za-z]*$').hasMatch(input)) return 'plate_partial';
+    
+    return 'unknown';
   }
 }

@@ -1,7 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/earnings_service.dart';
-import '../services/api_service.dart';
-import '../services/location_api_service.dart';
 import '../models/campaign_earnings.dart';
 // Import existing earnings service provider
 import 'earnings_provider.dart' show earningsServiceProvider;

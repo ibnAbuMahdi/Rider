@@ -175,7 +175,7 @@ class BankAccount {
 @JsonSerializable()
 class SupportedBank {
   @HiveField(0)
-  final int id;
+  final String id;
   
   @HiveField(1)
   final String name;
@@ -200,15 +200,15 @@ class SupportedBank {
   final bool supportsBulkTransfer;
   
   @HiveField(7)
-  @JsonKey(name: 'min_transfer_amount')
+  @JsonKey(name: 'min_transfer_amount', fromJson: _doubleFromString, toJson: _doubleToString)
   final double minTransferAmount;
   
   @HiveField(8)
-  @JsonKey(name: 'max_transfer_amount')
+  @JsonKey(name: 'max_transfer_amount', fromJson: _doubleFromString, toJson: _doubleToString)
   final double maxTransferAmount;
   
   @HiveField(9)
-  @JsonKey(name: 'transfer_fee')
+  @JsonKey(name: 'transfer_fee', fromJson: _doubleFromString, toJson: _doubleToString)
   final double transferFee;
   
   @HiveField(10)
@@ -218,6 +218,27 @@ class SupportedBank {
   @HiveField(11)
   @JsonKey(name: 'logo_url')
   final String? logoUrl;
+
+  // Additional fields for Monnify compatibility
+  @HiveField(12)
+  @JsonKey(name: 'nip_bank_code')
+  final String? nipBankCode;
+  
+  @HiveField(13)
+  @JsonKey(name: 'bank_id')
+  final String? bankId;
+  
+  @HiveField(14)
+  @JsonKey(name: 'ussd_template')
+  final String? ussdTemplate;
+  
+  @HiveField(15)
+  @JsonKey(name: 'base_ussd_code')
+  final String? baseUssdCode;
+  
+  @HiveField(16)
+  @JsonKey(name: 'transfer_ussd_template')
+  final String? transferUssdTemplate;
 
   const SupportedBank({
     required this.id,
@@ -232,10 +253,38 @@ class SupportedBank {
     required this.transferFee,
     required this.processingTimeMinutes,
     this.logoUrl,
+    this.nipBankCode,
+    this.bankId,
+    this.ussdTemplate,
+    this.baseUssdCode,
+    this.transferUssdTemplate,
   });
 
   factory SupportedBank.fromJson(Map<String, dynamic> json) => _$SupportedBankFromJson(json);
   Map<String, dynamic> toJson() => _$SupportedBankToJson(this);
+
+  /// Factory method to create SupportedBank from Monnify API response
+  factory SupportedBank.fromMonnifyResponse(Map<String, dynamic> json) {
+    return SupportedBank(
+      id: json['code'] ?? json['bankId'] ?? '',
+      name: json['name'] ?? '',
+      code: json['code'] ?? '',
+      shortName: json['name'] ?? '',
+      isActive: true, // Default to true for Monnify banks
+      supportsInstantTransfer: true, // Default assumption
+      supportsBulkTransfer: false, // Default assumption
+      minTransferAmount: 0.0,
+      maxTransferAmount: 999999999.0,
+      transferFee: 0.0,
+      processingTimeMinutes: 0, // Instant
+      logoUrl: null,
+      nipBankCode: json['nipBankCode'],
+      bankId: json['bankId'],
+      ussdTemplate: json['ussdTemplate'],
+      baseUssdCode: json['baseUssdCode'],
+      transferUssdTemplate: json['transferUssdTemplate'],
+    );
+  }
   
   String get processingTimeDisplay {
     if (processingTimeMinutes == 0) {
@@ -359,4 +408,19 @@ class BankVerificationLog {
         return result;
     }
   }
+}
+
+// Helper functions for SupportedBank string to double conversion
+double _doubleFromString(dynamic value) {
+  if (value is String) {
+    return double.parse(value);
+  } else if (value is num) {
+    return value.toDouble();
+  } else {
+    return 0.0;
+  }
+}
+
+String _doubleToString(double value) {
+  return value.toString();
 }

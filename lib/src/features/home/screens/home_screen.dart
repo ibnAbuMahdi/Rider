@@ -676,17 +676,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                       style: const TextStyle(
                                           color: Colors.red, fontSize: 12)),
                                 const Divider(),
-                                Text('Tracking Status:',
+                                const Text('Tracking Status:',
                                     style: TextStyle(fontWeight: FontWeight.bold)),
-                                Text('Movement Threshold: ${AppConstants.movementThresholdMeters}m'),
-                                Text('Update Interval: ${AppConstants.locationUpdateIntervalSeconds}s'),
-                                Text('Stationary Timeout: ${AppConstants.stationaryIntervalMinutes}min'),
+                                const Text('Movement Threshold: ${AppConstants.movementThresholdMeters}m'),
+                                const Text('Update Interval: ${AppConstants.locationUpdateIntervalSeconds}s'),
+                                const Text('Stationary Timeout: ${AppConstants.stationaryIntervalMinutes}min'),
                                 if (activeCampaign != null) ...[
-                                  Text('Active Campaign: ${activeCampaign!.name}'),
-                                  Text('Campaign Status: ${activeCampaign!.status}'),
+                                  Text('Active Campaign: ${activeCampaign.name}'),
+                                  Text('Campaign Status: ${activeCampaign.status}'),
                                 ],
                                 const Divider(),
-                                Text('Random Verification Service:',
+                                const Text('Random Verification Service:',
                                     style: TextStyle(fontWeight: FontWeight.bold)),
                                 Text('Service Running: ${_randomVerificationService?.isRunning ?? false}'),
                                 Text('Has Active Geofences: ${ref.watch(hasActiveGeofenceAssignmentsProvider)}'),
@@ -720,7 +720,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8), // Reduced from 16 to 8 to push card up
-      height: MediaQuery.of(context).size.height * 0.25, // Increased from 0.24 to 0.25 to fix 2px overflow
+      height: MediaQuery.of(context).size.height * 0.25, // Back to original height
       child: Card(
         elevation: 6,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -813,7 +813,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               
               const SizedBox(height: 8), // Reduced from 12 to 8
               
-              // Geofence Assignment Info Section (NEW)
+              // Geofence Assignment Info Section (COMMENTED OUT - causing overflow)
               if (activeGeofenceAssignment != null) ...[
                 Container(
                   padding: const EdgeInsets.all(10), // Reduced from 12 to 10
@@ -888,28 +888,45 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // Get real-time tracking data from live tracking stats provider (auto-refreshes)
     final trackingStats = ref.watch(liveTrackingStatsProvider);
     
-    // Calculate current session data if in a geofence
+    // Get rate and rate type information first
+    final currentGeofence = trackingStats.currentGeofence;
+    final rateType = currentGeofence?.rateType ?? activeGeofenceAssignment?.rateType ?? 'unknown';
+    final ratePerKm = currentGeofence?.ratePerKm ?? activeGeofenceAssignment?.ratePerKm ?? 0.0;
+    final ratePerHour = currentGeofence?.ratePerHour ?? activeGeofenceAssignment?.ratePerHour ?? 0.0;
+    
+    // Calculate current session data - use active assignment even if temporarily outside geofence
     double currentGeofenceDistance = 0.0;
     int currentGeofenceMinutes = 0;
-    if (trackingStats.currentGeofence != null && trackingStats.currentGeofenceId != null) {
-      currentGeofenceDistance = (trackingStats.geofenceDistances[trackingStats.currentGeofenceId!] ?? 0.0) / 1000.0; // Convert to km
-      currentGeofenceMinutes = (trackingStats.geofenceDurations[trackingStats.currentGeofenceId!] ?? Duration.zero).inMinutes;
+    
+    // For duration, use the active assignment's geofence even if temporarily outside
+    final activeGeofenceId = activeGeofenceAssignment?.geofenceId ?? trackingStats.currentGeofenceId;
+    if (activeGeofenceId != null) {
+      currentGeofenceDistance = (trackingStats.geofenceDistances[activeGeofenceId] ?? 0.0) / 1000.0; // Convert to km
+      currentGeofenceMinutes = (trackingStats.geofenceDurations[activeGeofenceId] ?? Duration.zero).inMinutes;
     }
     
-    // Use live data if tracking is active, fallback to assignment data
-    final displayDistance = locationState.isTracking 
-        ? (trackingStats.totalDistance / 1000.0).toStringAsFixed(1) // Convert meters to km
-        : (activeGeofenceAssignment?.distanceCovered ?? 0.0).toStringAsFixed(1);
+    // Display distance or duration based on rate type
+    String displayMetric;
+    String metricLabel;
+    if (rateType == 'per_hour') {
+      // For per_hour rates, show duration in minutes
+      final durationMinutes = locationState.isTracking 
+          ? currentGeofenceMinutes
+          : 0;
+      displayMetric = '$durationMinutes min';
+      metricLabel = 'Duration';
+    } else {
+      // For per_km and fixed_daily rates, show distance
+      final distanceKm = locationState.isTracking 
+          ? (trackingStats.totalDistance / 1000.0)
+          : (activeGeofenceAssignment?.distanceCovered ?? 0.0);
+      displayMetric = '${distanceKm.toStringAsFixed(1)} km';
+      metricLabel = 'Distance';
+    }
     
     final displayEarnings = locationState.isTracking 
         ? trackingStats.totalGeofenceEarnings.toStringAsFixed(2) // Show more precision for debugging
         : (activeGeofenceAssignment?.amountEarned ?? 0.0).toStringAsFixed(2);
-    
-    // Get rate and rate type information for better display
-    final currentGeofence = trackingStats.currentGeofence;
-    final rateType = currentGeofence?.rateType ?? 'unknown';
-    final ratePerKm = currentGeofence?.ratePerKm ?? activeGeofenceAssignment?.ratePerKm ?? 0.0;
-    final ratePerHour = currentGeofence?.ratePerHour ?? 0.0;
     
     // Create rate display based on rate type
     String displayRate;
@@ -917,10 +934,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       displayRate = '₦${ratePerKm.toStringAsFixed(0)}/km';
     } else if (rateType == 'per_hour') {
       displayRate = '₦${ratePerHour.toStringAsFixed(0)}/hr';
-    } else if (rateType == 'hybrid') {
-      displayRate = '₦${ratePerKm.toStringAsFixed(0)}/km + ₦${ratePerHour.toStringAsFixed(0)}/hr';
+    // Hybrid rate type removed for simplified tracking
+    // } else if (rateType == 'hybrid') {
+    //   displayRate = '₦${ratePerKm.toStringAsFixed(0)}/km + ₦${ratePerHour.toStringAsFixed(0)}/hr';
     } else if (rateType == 'fixed_daily') {
-      final dailyRate = currentGeofence?.fixedDailyRate ?? 0.0;
+      final dailyRate = currentGeofence?.fixedDailyRate ?? activeGeofenceAssignment?.fixedDailyRate ?? 0.0;
       displayRate = '₦${dailyRate.toStringAsFixed(0)}/day';
     } else {
       displayRate = '₦${ratePerKm.toStringAsFixed(0)}/km';
@@ -933,9 +951,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           children: [
             Expanded(
               child: _buildAssignmentStat(
-                'Distance',
-                '${displayDistance} km',
-                Icons.straighten,
+                metricLabel,
+                displayMetric,
+                rateType == 'per_hour' ? Icons.access_time : Icons.straighten,
                 isLive: locationState.isTracking,
               ),
             ),
@@ -960,7 +978,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             Expanded(
               child: _buildAssignmentStat(
                 'Earned',
-                '₦${displayEarnings}',
+                '₦$displayEarnings',
                 Icons.account_balance_wallet,
                 isLive: locationState.isTracking,
                 subtitle: trackingStats.isWithinGeofence 
@@ -972,58 +990,58 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
         
         // Current geofence session info (show for per_hour rates and when in geofence)
-        if (locationState.isTracking && trackingStats.isWithinGeofence && trackingStats.currentGeofence != null) ...[
-          const SizedBox(height: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.green.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: Colors.green.withOpacity(0.3)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.location_on, size: 10, color: Colors.green),
-                const SizedBox(width: 4),
-                Text(
-                  'In ${trackingStats.currentGeofence!.name}',
-                  style: const TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.green,
-                  ),
-                ),
-                // Show distance for distance-based rates
-                if (rateType == 'per_km' || rateType == 'hybrid') ...[
-                  const SizedBox(width: 8),
-                  Text(
-                    '${currentGeofenceDistance.toStringAsFixed(1)}km',
-                    style: const TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green,
-                    ),
-                  ),
-                ],
-                // Show time for time-based rates (per_hour, hybrid, fixed_daily)
-                if ((rateType == 'per_hour' || rateType == 'hybrid' || rateType == 'fixed_daily') && currentGeofenceMinutes > 0) ...[
-                  const SizedBox(width: 8), 
-                  Icon(Icons.access_time, size: 10, color: Colors.green),
-                  const SizedBox(width: 2),
-                  Text(
-                    '${currentGeofenceMinutes}min',
-                    style: const TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
+        // if (locationState.isTracking && trackingStats.isWithinGeofence && trackingStats.currentGeofence != null) ...[
+        //   const SizedBox(height: 6),
+        //   Container(
+        //     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        //     decoration: BoxDecoration(
+        //       color: Colors.green.withOpacity(0.1),
+        //       borderRadius: BorderRadius.circular(6),
+        //       border: Border.all(color: Colors.green.withOpacity(0.3)),
+        //     ),
+        //     child: Row(
+        //       mainAxisAlignment: MainAxisAlignment.center,
+        //       children: [
+        //         Icon(Icons.location_on, size: 10, color: Colors.green),
+        //         const SizedBox(width: 4),
+        //         Text(
+        //           'In ${trackingStats.currentGeofence!.name}',
+        //           style: const TextStyle(
+        //             fontSize: 9,
+        //             fontWeight: FontWeight.w600,
+        //             color: Colors.green,
+        //           ),
+        //         ),
+        //         // Show distance for distance-based rates
+        //         if (rateType == 'per_km' || rateType == 'hybrid') ...[
+        //           const SizedBox(width: 8),
+        //           Text(
+        //             '${currentGeofenceDistance.toStringAsFixed(1)}km',
+        //             style: const TextStyle(
+        //               fontSize: 9,
+        //               fontWeight: FontWeight.bold,
+        //               color: Colors.green,
+        //             ),
+        //           ),
+        //         ],
+        //         // Show time for time-based rates (per_hour, hybrid, fixed_daily)
+        //         if ((rateType == 'per_hour' || rateType == 'hybrid' || rateType == 'fixed_daily') && currentGeofenceMinutes > 0) ...[
+        //           const SizedBox(width: 8), 
+        //           Icon(Icons.access_time, size: 10, color: Colors.green),
+        //           const SizedBox(width: 2),
+        //           Text(
+        //             '${currentGeofenceMinutes}min',
+        //             style: const TextStyle(
+        //               fontSize: 9,
+        //               fontWeight: FontWeight.bold,
+        //               color: Colors.green,
+        //             ),
+        //           ),
+        //         ],
+        //       ],
+        //     ),
+        //   ),
+        // ],
       ],
     );
   }
@@ -1637,9 +1655,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         }
         
         // Only get a fresh reference if we don't have a service or it's not running
-        if (_randomVerificationService == null) {
-          _randomVerificationService = ref.read(randomVerificationBackgroundServiceProvider);
-        }
+        _randomVerificationService ??= ref.read(randomVerificationBackgroundServiceProvider);
         
         // Ensure the service is running (handle case where service exists but was stopped)
         if (!_randomVerificationService!.isRunning) {
@@ -1696,15 +1712,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       context: context,
       barrierDismissible: false, // Cannot dismiss randomly triggered verifications
       builder: (context) => AlertDialog(
-        title: Row(
+        title: const Row(
           children: [
             Icon(
               Icons.verified_user,
               color: AppColors.primary,
               size: 24,
             ),
-            const SizedBox(width: 8),
-            const Text('Verification Required'),
+            SizedBox(width: 8),
+            Text('Verification Required'),
           ],
         ),
         content: Column(
@@ -1725,7 +1741,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               child: Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.access_time,
                     color: AppColors.warning,
                     size: 16,
@@ -1734,7 +1750,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   Expanded(
                     child: Text(
                       'Time remaining: ${_formatTimeRemaining(request.deadline)}',
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: AppColors.warning,
                         fontWeight: FontWeight.w600,
                         fontSize: 14,
@@ -1886,7 +1902,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             const SizedBox(height: 8),
 
             // Location Information
-            _buildInfoRow('Center', '${(assignment.centerLatitudeCamelCase ?? assignment.centerLatitude)?.toStringAsFixed(4)}, ${(assignment.centerLongitudeCamelCase ?? assignment.centerLongitude)?.toStringAsFixed(4)}'),
+            _buildInfoRow('Center', '${(assignment.centerLatitudeCamelCase ?? assignment.centerLatitude).toStringAsFixed(4)}, ${(assignment.centerLongitudeCamelCase ?? assignment.centerLongitude).toStringAsFixed(4)}'),
             _buildInfoRow('Radius', '${assignment.radius ?? assignment.radiusMeters}m'),
 
             const SizedBox(height: 16),

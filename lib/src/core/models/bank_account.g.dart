@@ -123,7 +123,7 @@ class SupportedBankAdapter extends TypeAdapter<SupportedBank> {
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
     return SupportedBank(
-      id: fields[0] as int,
+      id: fields[0] as String,
       name: fields[1] as String,
       code: fields[2] as String,
       shortName: fields[3] as String,
@@ -135,13 +135,18 @@ class SupportedBankAdapter extends TypeAdapter<SupportedBank> {
       transferFee: fields[9] as double,
       processingTimeMinutes: fields[10] as int,
       logoUrl: fields[11] as String?,
+      nipBankCode: fields[12] as String?,
+      bankId: fields[13] as String?,
+      ussdTemplate: fields[14] as String?,
+      baseUssdCode: fields[15] as String?,
+      transferUssdTemplate: fields[16] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, SupportedBank obj) {
     writer
-      ..writeByte(12)
+      ..writeByte(17)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -165,7 +170,17 @@ class SupportedBankAdapter extends TypeAdapter<SupportedBank> {
       ..writeByte(10)
       ..write(obj.processingTimeMinutes)
       ..writeByte(11)
-      ..write(obj.logoUrl);
+      ..write(obj.logoUrl)
+      ..writeByte(12)
+      ..write(obj.nipBankCode)
+      ..writeByte(13)
+      ..write(obj.bankId)
+      ..writeByte(14)
+      ..write(obj.ussdTemplate)
+      ..writeByte(15)
+      ..write(obj.baseUssdCode)
+      ..writeByte(16)
+      ..write(obj.transferUssdTemplate);
   }
 
   @override
@@ -250,18 +265,23 @@ Map<String, dynamic> _$BankAccountToJson(BankAccount instance) =>
 
 SupportedBank _$SupportedBankFromJson(Map<String, dynamic> json) =>
     SupportedBank(
-      id: (json['id'] as num).toInt(),
+      id: json['id'] as String,
       name: json['name'] as String,
       code: json['code'] as String,
       shortName: json['short_name'] as String,
       isActive: json['is_active'] as bool,
       supportsInstantTransfer: json['supports_instant_transfer'] as bool,
       supportsBulkTransfer: json['supports_bulk_transfer'] as bool,
-      minTransferAmount: (json['min_transfer_amount'] as num).toDouble(),
-      maxTransferAmount: (json['max_transfer_amount'] as num).toDouble(),
-      transferFee: (json['transfer_fee'] as num).toDouble(),
+      minTransferAmount: _doubleFromString(json['min_transfer_amount']),
+      maxTransferAmount: _doubleFromString(json['max_transfer_amount']),
+      transferFee: _doubleFromString(json['transfer_fee']),
       processingTimeMinutes: (json['processing_time_minutes'] as num).toInt(),
       logoUrl: json['logo_url'] as String?,
+      nipBankCode: json['nip_bank_code'] as String?,
+      bankId: json['bank_id'] as String?,
+      ussdTemplate: json['ussd_template'] as String?,
+      baseUssdCode: json['base_ussd_code'] as String?,
+      transferUssdTemplate: json['transfer_ussd_template'] as String?,
     );
 
 Map<String, dynamic> _$SupportedBankToJson(SupportedBank instance) =>
@@ -273,11 +293,16 @@ Map<String, dynamic> _$SupportedBankToJson(SupportedBank instance) =>
       'is_active': instance.isActive,
       'supports_instant_transfer': instance.supportsInstantTransfer,
       'supports_bulk_transfer': instance.supportsBulkTransfer,
-      'min_transfer_amount': instance.minTransferAmount,
-      'max_transfer_amount': instance.maxTransferAmount,
-      'transfer_fee': instance.transferFee,
+      'min_transfer_amount': _doubleToString(instance.minTransferAmount),
+      'max_transfer_amount': _doubleToString(instance.maxTransferAmount),
+      'transfer_fee': _doubleToString(instance.transferFee),
       'processing_time_minutes': instance.processingTimeMinutes,
       'logo_url': instance.logoUrl,
+      'nip_bank_code': instance.nipBankCode,
+      'bank_id': instance.bankId,
+      'ussd_template': instance.ussdTemplate,
+      'base_ussd_code': instance.baseUssdCode,
+      'transfer_ussd_template': instance.transferUssdTemplate,
     };
 
 BankAccountStats _$BankAccountStatsFromJson(Map<String, dynamic> json) =>

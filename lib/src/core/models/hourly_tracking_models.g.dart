@@ -22,6 +22,7 @@ class HourlyTrackingWindowAdapter extends TypeAdapter<HourlyTrackingWindow> {
       endTime: fields[2] as DateTime,
       geofenceId: fields[3] as String,
       campaignId: fields[4] as String,
+      assignmentId: fields[8] as String?,
       samples: (fields[5] as List).cast<LocationSample>(),
       status: fields[6] as WindowStatus,
       failureEvents: (fields[7] as List).cast<FailureEvent>(),
@@ -31,7 +32,7 @@ class HourlyTrackingWindowAdapter extends TypeAdapter<HourlyTrackingWindow> {
   @override
   void write(BinaryWriter writer, HourlyTrackingWindow obj) {
     writer
-      ..writeByte(8)
+      ..writeByte(9)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -42,6 +43,8 @@ class HourlyTrackingWindowAdapter extends TypeAdapter<HourlyTrackingWindow> {
       ..write(obj.geofenceId)
       ..writeByte(4)
       ..write(obj.campaignId)
+      ..writeByte(8)
+      ..write(obj.assignmentId)
       ..writeByte(5)
       ..write(obj.samples)
       ..writeByte(6)
@@ -219,6 +222,7 @@ HourlyTrackingWindow _$HourlyTrackingWindowFromJson(
       endTime: DateTime.parse(json['endTime'] as String),
       geofenceId: json['geofenceId'] as String,
       campaignId: json['campaignId'] as String,
+      assignmentId: json['assignmentId'] as String?,
       samples: (json['samples'] as List<dynamic>)
           .map((e) => LocationSample.fromJson(e as Map<String, dynamic>))
           .toList(),
@@ -236,6 +240,7 @@ Map<String, dynamic> _$HourlyTrackingWindowToJson(
       'endTime': instance.endTime.toIso8601String(),
       'geofenceId': instance.geofenceId,
       'campaignId': instance.campaignId,
+      'assignmentId': instance.assignmentId,
       'samples': instance.samples,
       'status': _$WindowStatusEnumMap[instance.status]!,
       'failureEvents': instance.failureEvents,

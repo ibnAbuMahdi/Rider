@@ -18,12 +18,19 @@ class _BankAccountsScreenState extends ConsumerState<BankAccountsScreen> {
   @override
   void initState() {
     super.initState();
+    // Load data on screen initialization
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(bankAccountsProvider.notifier).refreshAccounts();
+      ref.read(bankAccountStatsProvider.notifier).refreshStats();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final bankAccountsState = ref.watch(bankAccountsProvider);
+    final statsState = ref.watch(bankAccountStatsProvider);
+
     return Scaffold(
-      backgroundColor: Colors.grey[50],
       appBar: AppBar(
         title: const Text('Bank Accounts'),
         backgroundColor: Colors.white,
@@ -40,67 +47,65 @@ class _BankAccountsScreenState extends ConsumerState<BankAccountsScreen> {
           ),
         ],
       ),
-      body: SafeArea(
-        child: _buildBody(),
-      ),
-    );
-  }
-
-
-  Widget _buildBody() {
-    return RefreshIndicator(
-      onRefresh: _refreshData,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Statistics Card - temporarily disabled due to layout issues
-            // Consumer(
-            //   builder: (context, ref, _) {
-            //     final statsState = ref.watch(bankAccountStatsProvider);
-            //     return statsState.when(
-            //       loading: () => const Card(
-            //         child: Padding(
-            //           padding: EdgeInsets.all(24.0),
-            //           child: Center(child: CircularProgressIndicator()),
-            //         ),
-            //       ),
-            //       error: (error, stack) => const SizedBox.shrink(),
-            //       data: (stats) => stats != null
-            //           ? BankAccountStatsCard(stats: stats)
-            //           : const SizedBox.shrink(),
-            //     );
-            //   },
-            // ),
-            const SizedBox(height: 16),
-            // Header
-            Text(
-              'Your Bank Accounts',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
+      backgroundColor: Colors.grey[50],
+      body: RefreshIndicator(
+        onRefresh: _refreshData,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Statistics Card
+              // statsState.when(
+              //   loading: () => const Card(
+              //     child: Padding(
+              //       padding: EdgeInsets.all(24.0),
+              //       child: Center(child: CircularProgressIndicator()),
+              //     ),
+              //   ),
+              //   error: (error, stack) => const SizedBox.shrink(),
+              //   data: (stats) => stats != null
+              //       ? BankAccountStatsCard(stats: stats)
+              //       : const SizedBox.shrink(),
+              // ),
+              const SizedBox(height: 16),
+              // Header with Add Button
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Your Bank Accounts',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
-            ),
-            const SizedBox(height: 16),
-            // Bank Accounts List
-            Consumer(
-              builder: (context, ref, _) {
-                final bankAccountsState = ref.watch(bankAccountsProvider);
-                return bankAccountsState.when(
-                  loading: () => const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(32.0),
-                      child: CircularProgressIndicator(),
+                  ElevatedButton.icon(
+                    onPressed: () => context.push('/bank-accounts/add'),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add Account'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue[600],
+                      foregroundColor: Colors.white,
                     ),
                   ),
-                  error: (error, stack) => _buildErrorState(error),
-                  data: (accounts) => _buildAccountsList(accounts ?? []),
-                );
-              },
-            ),
-            const SizedBox(height: 32),
-          ],
+                ],
+              ),
+              const SizedBox(height: 16),
+              // Bank Accounts List
+              // bankAccountsState.when(
+              //   loading: () => const Center(
+              //     child: Padding(
+              //       padding: EdgeInsets.all(32.0),
+              //       child: CircularProgressIndicator(),
+              //     ),
+              //   ),
+              //   error: (error, stack) => _buildErrorState(error),
+              //   data: (accounts) => _buildAccountsList(accounts),
+              // ),
+            ],
+          ),
         ),
       ),
     );

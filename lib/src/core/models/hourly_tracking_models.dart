@@ -22,6 +22,9 @@ class HourlyTrackingWindow {
   @HiveField(4)
   final String campaignId;
   
+  @HiveField(8) // Using field 8 to avoid conflicts
+  final String? assignmentId;
+  
   @HiveField(5)
   final List<LocationSample> samples;
   
@@ -37,6 +40,7 @@ class HourlyTrackingWindow {
     required this.endTime,
     required this.geofenceId,
     required this.campaignId,
+    this.assignmentId,
     required this.samples,
     required this.status,
     required this.failureEvents,
@@ -53,6 +57,7 @@ class HourlyTrackingWindow {
     DateTime? endTime,
     String? geofenceId,
     String? campaignId,
+    String? assignmentId,
     List<LocationSample>? samples,
     WindowStatus? status,
     List<FailureEvent>? failureEvents,
@@ -63,6 +68,7 @@ class HourlyTrackingWindow {
       endTime: endTime ?? this.endTime,
       geofenceId: geofenceId ?? this.geofenceId,
       campaignId: campaignId ?? this.campaignId,
+      assignmentId: assignmentId ?? this.assignmentId,
       samples: samples ?? this.samples,
       status: status ?? this.status,
       failureEvents: failureEvents ?? this.failureEvents,

@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/providers/fleet_provider.dart';
 import '../../../core/models/fleet_status.dart';
-import '../../../core/models/fleet_owner.dart';
 import '../widgets/fleet_info_card.dart';
 
 class FleetManagementScreen extends ConsumerStatefulWidget {

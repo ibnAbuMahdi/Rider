@@ -8,81 +8,106 @@ part 'campaign_earnings.g.dart';
 @JsonSerializable()
 class CampaignEarnings {
   @HiveField(0)
+  @JsonKey(name: 'campaign_id')
   final String campaignId;
   
   @HiveField(1)
+  @JsonKey(name: 'campaign_title')
   final String campaignTitle;
   
   @HiveField(2)
+  @JsonKey(name: 'campaign_image_url')
   final String? campaignImageUrl;
   
   @HiveField(3)
+  @JsonKey(name: 'geofence_id')
   final String geofenceId;
   
   @HiveField(4)
+  @JsonKey(name: 'geofence_name')
   final String geofenceName;
   
   @HiveField(5)
+  @JsonKey(name: 'assignment_id')
   final String assignmentId; // Unique assignment ID for this geofence session
   
   @HiveField(6)
+  @JsonKey(name: 'total_earned')
   final double totalEarned;
   
   @HiveField(7)
+  @JsonKey(name: 'this_week_earned')
   final double thisWeekEarned;
   
   @HiveField(8)
+  @JsonKey(name: 'this_month_earned')
   final double thisMonthEarned;
   
   @HiveField(9)
+  @JsonKey(name: 'pending_amount')
   final double pendingAmount;
   
   @HiveField(10)
+  @JsonKey(name: 'paid_amount')
   final double paidAmount;
   
   @HiveField(11)
+  @JsonKey(name: 'total_sessions')
   final int totalSessions;
   
   @HiveField(12)
+  @JsonKey(name: 'total_time_worked', fromJson: _durationFromInt, toJson: _durationToInt)
   final Duration totalTimeWorked;
   
   @HiveField(13)
+  @JsonKey(name: 'total_distance_covered')
   final double totalDistanceCovered;
   
   @HiveField(14)
+  @JsonKey(name: 'verifications_completed')
   final int verificationsCompleted;
   
   @HiveField(15)
+  @JsonKey(name: 'assignment_start_date', fromJson: _dateTimeFromString, toJson: _dateTimeToString)
   final DateTime assignmentStartDate; // When joined this geofence
   
   @HiveField(16)
+  @JsonKey(name: 'assignment_end_date', fromJson: _optionalDateTimeFromString, toJson: _optionalDateTimeToString)
   final DateTime? assignmentEndDate; // When left this geofence (null if still active)
   
   @HiveField(17)
+  @JsonKey(name: 'last_active_date', fromJson: _optionalDateTimeFromString, toJson: _optionalDateTimeToString)
   final DateTime? lastActiveDate;
   
   @HiveField(18)
+  @JsonKey(name: 'last_payment_date', fromJson: _optionalDateTimeFromString, toJson: _optionalDateTimeToString)
   final DateTime? lastPaymentDate;
   
   @HiveField(19)
+  @JsonKey(name: 'rate_type')
   final String rateType; // 'per_km', 'per_hour', 'fixed_daily', 'hybrid'
   
   @HiveField(20)
+  @JsonKey(name: 'rate_per_km')
   final double ratePerKm;
   
   @HiveField(21)
+  @JsonKey(name: 'rate_per_hour')
   final double ratePerHour;
   
   @HiveField(22)
+  @JsonKey(name: 'fixed_daily_rate')
   final double fixedDailyRate;
   
   @HiveField(23)
   final String status; // 'active', 'completed', 'paused', 'left'
   
   @HiveField(24)
+  @JsonKey(name: 'created_at', fromJson: _dateTimeFromString, toJson: _dateTimeToString)
   final DateTime createdAt;
   
   @HiveField(25)
+  @JsonKey(name: 'updated_at', fromJson: _dateTimeFromString, toJson: _dateTimeToString)
   final DateTime updatedAt;
 
   const CampaignEarnings({
@@ -244,42 +269,54 @@ class CampaignEarnings {
 @JsonSerializable()
 class CampaignSummary {
   @HiveField(0)
+  @JsonKey(name: 'campaign_id')
   final String campaignId;
   
   @HiveField(1)
+  @JsonKey(name: 'campaign_title')
   final String campaignTitle;
   
   @HiveField(2)
+  @JsonKey(name: 'campaign_image_url')
   final String? campaignImageUrl;
   
   @HiveField(3)
+  @JsonKey(name: 'total_earned')
   final double totalEarned;
   
   @HiveField(4)
+  @JsonKey(name: 'pending_amount')
   final double pendingAmount;
   
   @HiveField(5)
+  @JsonKey(name: 'paid_amount')
   final double paidAmount;
   
   @HiveField(6)
+  @JsonKey(name: 'total_assignments')
   final int totalAssignments; // Number of geofence assignments
   
   @HiveField(7)
+  @JsonKey(name: 'active_assignments')
   final int activeAssignments; // Currently active assignments
   
   @HiveField(8)
+  @JsonKey(name: 'geofence_assignments')
   final List<CampaignEarnings> geofenceAssignments;
   
   @HiveField(9)
+  @JsonKey(name: 'first_joined_date', fromJson: _dateTimeFromString, toJson: _dateTimeToString)
   final DateTime firstJoinedDate;
   
   @HiveField(10)
+  @JsonKey(name: 'last_active_date', fromJson: _optionalDateTimeFromString, toJson: _optionalDateTimeToString)
   final DateTime? lastActiveDate;
   
   @HiveField(11)
   final String status; // 'active', 'completed', 'inactive'
   
   @HiveField(12)
+  @JsonKey(name: 'updated_at', fromJson: _dateTimeFromString, toJson: _dateTimeToString)
   final DateTime updatedAt;
 
   const CampaignSummary({
@@ -357,57 +394,75 @@ class CampaignSummary {
 @JsonSerializable()
 class EarningsOverview {
   @HiveField(0)
+  @JsonKey(name: 'total_earnings')
   final double totalEarnings;
   
   @HiveField(1)
+  @JsonKey(name: 'pending_earnings')
   final double pendingEarnings;
   
   @HiveField(2)
+  @JsonKey(name: 'paid_earnings')
   final double paidEarnings;
   
   @HiveField(3)
+  @JsonKey(name: 'this_week_earnings')
   final double thisWeekEarnings;
   
   @HiveField(4)
+  @JsonKey(name: 'this_month_earnings')
   final double thisMonthEarnings;
   
   @HiveField(5)
+  @JsonKey(name: 'last_week_earnings')
   final double lastWeekEarnings;
   
   @HiveField(6)
+  @JsonKey(name: 'last_month_earnings')
   final double lastMonthEarnings;
   
   @HiveField(7)
+  @JsonKey(name: 'active_campaigns_count')
   final int activeCampaignsCount;
   
   @HiveField(8)
+  @JsonKey(name: 'total_campaigns_count')
   final int totalCampaignsCount;
   
   @HiveField(9)
+  @JsonKey(name: 'total_time_worked', fromJson: _durationFromInt, toJson: _durationToInt)
   final Duration totalTimeWorked;
   
   @HiveField(10)
+  @JsonKey(name: 'total_distance_covered')
   final double totalDistanceCovered;
   
   @HiveField(11)
+  @JsonKey(name: 'total_verifications')
   final int totalVerifications;
   
   @HiveField(12)
+  @JsonKey(name: 'total_sessions')
   final int totalSessions;
   
   @HiveField(13)
+  @JsonKey(name: 'next_payment_date')
   final DateTime? nextPaymentDate;
   
   @HiveField(14)
+  @JsonKey(name: 'top_performing_campaign')
   final String topPerformingCampaign;
   
   @HiveField(15)
+  @JsonKey(name: 'average_daily_earnings')
   final double averageDailyEarnings;
   
   @HiveField(16)
+  @JsonKey(name: 'weekly_trend')
   final List<double> weeklyTrend; // Last 7 days earnings
   
   @HiveField(17)
+  @JsonKey(name: 'updated_at', fromJson: _dateTimeFromString, toJson: _dateTimeToString)
   final DateTime updatedAt;
 
   const EarningsOverview({
@@ -482,3 +537,17 @@ class EarningsOverview {
     return nextPaymentDate!.difference(DateTime.now()).inDays;
   }
 }
+
+// Helper functions for Duration conversion
+Duration _durationFromInt(num hours) => Duration(minutes: (hours * 60).round());
+int _durationToInt(Duration duration) => duration.inHours;
+
+// Helper functions for DateTime conversion
+DateTime _dateTimeFromString(String dateString) => DateTime.parse(dateString);
+String _dateTimeToString(DateTime dateTime) => dateTime.toIso8601String();
+
+// Helper functions for optional DateTime conversion
+DateTime? _optionalDateTimeFromString(String? dateString) => 
+    dateString != null ? DateTime.parse(dateString) : null;
+String? _optionalDateTimeToString(DateTime? dateTime) => 
+    dateTime?.toIso8601String();

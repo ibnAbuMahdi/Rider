@@ -47,13 +47,14 @@ class RiderAdapter extends TypeAdapter<Rider> {
       riderId: fields[27] as String?,
       status: fields[28] as String?,
       verificationStatus: fields[29] as String?,
+      plateNumber: fields[30] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, Rider obj) {
     writer
-      ..writeByte(30)
+      ..writeByte(31)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -113,7 +114,9 @@ class RiderAdapter extends TypeAdapter<Rider> {
       ..writeByte(28)
       ..write(obj.status)
       ..writeByte(29)
-      ..write(obj.verificationStatus);
+      ..write(obj.verificationStatus)
+      ..writeByte(30)
+      ..write(obj.plateNumber);
   }
 
   @override
@@ -170,6 +173,7 @@ Rider _$RiderFromJson(Map<String, dynamic> json) => Rider(
       riderId: json['rider_id'] as String?,
       status: json['status'] as String?,
       verificationStatus: json['verification_status'] as String?,
+      plateNumber: json['plate_number'] as String?,
     );
 
 Map<String, dynamic> _$RiderToJson(Rider instance) => <String, dynamic>{
@@ -203,4 +207,5 @@ Map<String, dynamic> _$RiderToJson(Rider instance) => <String, dynamic>{
       'rider_id': instance.riderId,
       'status': instance.status,
       'verification_status': instance.verificationStatus,
+      'plate_number': instance.plateNumber,
     };

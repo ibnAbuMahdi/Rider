@@ -31,7 +31,17 @@ class BankAccountService {
       );
 
       final data = response.data as Map<String, dynamic>;
-      final List<dynamic> results = data['results'] ?? [];
+      
+      // Check if this is a Monnify response format
+      if (data['success'] == true && data['source'] == 'monnify' && data['banks'] != null) {
+        final List<dynamic> banks = data['banks'];
+        return banks
+            .map((bank) => SupportedBank.fromMonnifyResponse(bank as Map<String, dynamic>))
+            .toList();
+      }
+      
+      // Handle standard format
+      final List<dynamic> results = data['results'] ?? data['banks'] ?? [];
       
       return results
           .map((bank) => SupportedBank.fromJson(bank as Map<String, dynamic>))
@@ -40,6 +50,7 @@ class BankAccountService {
     } catch (e) {
       if (kDebugMode) {
         print('Get supported banks error: $e');
+        print('Response data type: ${e.runtimeType}');
       }
       
       // Return empty list instead of throwing

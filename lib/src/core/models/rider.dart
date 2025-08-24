@@ -123,7 +123,11 @@ class Rider {
   
   @HiveField(29)
   @JsonKey(name: 'verification_status')
-  final String? verificationStatus; // unverified, pending, verified, rejected
+  final String? verificationStatus;
+  
+  @HiveField(30)
+  @JsonKey(name: 'plate_number')
+  final String? plateNumber;
 
   const Rider({
     required this.id,
@@ -156,6 +160,7 @@ class Rider {
     this.riderId,
     this.status,
     this.verificationStatus,
+    this.plateNumber,
   });
 
   factory Rider.fromJson(Map<String, dynamic> json) {
@@ -255,6 +260,7 @@ class Rider {
       riderId: json['rider_id']?.toString(),
       status: json['status']?.toString(),
       verificationStatus: json['verification_status']?.toString(),
+      plateNumber: json['plate_number']?.toString(),
     );
   }
 
@@ -290,6 +296,7 @@ class Rider {
       'rider_id': riderId,
       'status': status,
       'verification_status': verificationStatus,
+      'plate_number': plateNumber,
     };
   }
 
@@ -324,6 +331,7 @@ class Rider {
     String? riderId,
     String? status,
     String? verificationStatus,
+    String? plateNumber,
   }) {
     return Rider(
       id: id ?? this.id,
@@ -356,6 +364,7 @@ class Rider {
       riderId: riderId ?? this.riderId,
       status: status ?? this.status,
       verificationStatus: verificationStatus ?? this.verificationStatus,
+      plateNumber: plateNumber ?? this.plateNumber,
     );
   }
 

@@ -4,6 +4,7 @@ import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/providers/auth_provider.dart';
+import '../../../core/services/auth_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../shared/widgets/loading_button.dart';
 import '../../shared/widgets/stika_logo.dart';
@@ -18,6 +19,7 @@ class PhoneInputScreen extends ConsumerStatefulWidget {
 class _PhoneInputScreenState extends ConsumerState<PhoneInputScreen> {
   final _formKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
+  final AuthService _authService = AuthService();
   String _completePhoneNumber = '';
   bool _isPhoneValid = false;
 
@@ -100,11 +102,16 @@ class _PhoneInputScreenState extends ConsumerState<PhoneInputScreen> {
                           onChanged: (phone) {
                             setState(() {
                               _completePhoneNumber = phone.completeNumber;
-                              _isPhoneValid = phone.isValidNumber();
+                              // Use custom validation for Nigerian phone numbers
+                              _isPhoneValid = _authService.isValidNigerianPhone(phone.completeNumber);
                             });
                           },
                           validator: (phone) {
-                            if (phone == null || !phone.isValidNumber()) {
+                            if (phone == null || phone.completeNumber.isEmpty) {
+                              return 'Please enter a phone number';
+                            }
+                            // Use custom validation for Nigerian phone numbers
+                            if (!_authService.isValidNigerianPhone(phone.completeNumber)) {
                               return 'Please enter a valid Nigerian phone number';
                             }
                             return null;

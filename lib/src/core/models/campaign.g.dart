@@ -27,6 +27,7 @@ class GeofenceAssignmentAdapter extends TypeAdapter<GeofenceAssignment> {
       centerLongitude: fields[6] as double,
       radiusMeters: fields[7] as int,
       ratePerKm: fields[8] as double?,
+      rateType: fields[28] as String?,
       ratePerHour: fields[9] as double?,
       fixedDailyRate: fields[10] as double?,
       amountEarned: fields[11] as double?,
@@ -51,7 +52,7 @@ class GeofenceAssignmentAdapter extends TypeAdapter<GeofenceAssignment> {
   @override
   void write(BinaryWriter writer, GeofenceAssignment obj) {
     writer
-      ..writeByte(28)
+      ..writeByte(29)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(27)
@@ -70,6 +71,8 @@ class GeofenceAssignmentAdapter extends TypeAdapter<GeofenceAssignment> {
       ..write(obj.centerLongitude)
       ..writeByte(7)
       ..write(obj.radiusMeters)
+      ..writeByte(28)
+      ..write(obj.rateType)
       ..writeByte(8)
       ..write(obj.ratePerKm)
       ..writeByte(9)
@@ -703,6 +706,7 @@ GeofenceAssignment _$GeofenceAssignmentFromJson(Map<String, dynamic> json) =>
       centerLongitude: (json['center_longitude'] as num).toDouble(),
       radiusMeters: (json['radius_meters'] as num).toInt(),
       ratePerKm: (json['rate_per_km'] as num?)?.toDouble(),
+      rateType: json['rate_type'] as String?,
       ratePerHour: (json['rate_per_hour'] as num?)?.toDouble(),
       fixedDailyRate: (json['fixed_daily_rate'] as num?)?.toDouble(),
       amountEarned: (json['earnings_from_geofence'] as num?)?.toDouble(),
@@ -734,6 +738,7 @@ Map<String, dynamic> _$GeofenceAssignmentToJson(GeofenceAssignment instance) =>
       'center_latitude': instance.centerLatitude,
       'center_longitude': instance.centerLongitude,
       'radius_meters': instance.radiusMeters,
+      'rate_type': instance.rateType,
       'rate_per_km': instance.ratePerKm,
       'rate_per_hour': instance.ratePerHour,
       'fixed_daily_rate': instance.fixedDailyRate,
@@ -900,10 +905,10 @@ Geofence _$GeofenceFromJson(Map<String, dynamic> json) => Geofence(
       budget: (json['budget'] as num?)?.toDouble(),
       spent: (json['spent'] as num?)?.toDouble(),
       remainingBudget: (json['remainingBudget'] as num?)?.toDouble(),
-      rateType: json['rateType'] as String?,
-      ratePerKm: (json['ratePerKm'] as num?)?.toDouble(),
-      ratePerHour: (json['ratePerHour'] as num?)?.toDouble(),
-      fixedDailyRate: (json['fixedDailyRate'] as num?)?.toDouble(),
+      rateType: json['rate_type'] as String?,
+      ratePerKm: (json['rate_per_km'] as num?)?.toDouble(),
+      ratePerHour: (json['rate_per_hour'] as num?)?.toDouble(),
+      fixedDailyRate: (json['fixed_daily_rate'] as num?)?.toDouble(),
       startDate: DateTime.parse(json['startDate'] as String),
       endDate: DateTime.parse(json['endDate'] as String),
       maxRiders: (json['maxRiders'] as num?)?.toInt(),
@@ -920,7 +925,7 @@ Geofence _$GeofenceFromJson(Map<String, dynamic> json) => Geofence(
           (json['verificationSuccessRate'] as num?)?.toDouble(),
       averageHourlyRate: (json['averageHourlyRate'] as num?)?.toDouble(),
       areaType: json['areaType'] as String? ?? 'mixed',
-      targetCoverageHours: (json['targetCoverageHours'] as num?)?.toInt(),
+      targetCoverageHours: (json['target_coverage_hours'] as num?)?.toInt(),
       verificationFrequency: (json['verificationFrequency'] as num?)?.toInt(),
       specialInstructions: json['specialInstructions'] as String? ?? '',
       description: json['description'] as String? ?? '',
@@ -947,10 +952,10 @@ Map<String, dynamic> _$GeofenceToJson(Geofence instance) => <String, dynamic>{
       'budget': instance.budget,
       'spent': instance.spent,
       'remainingBudget': instance.remainingBudget,
-      'rateType': instance.rateType,
-      'ratePerKm': instance.ratePerKm,
-      'ratePerHour': instance.ratePerHour,
-      'fixedDailyRate': instance.fixedDailyRate,
+      'rate_type': instance.rateType,
+      'rate_per_km': instance.ratePerKm,
+      'rate_per_hour': instance.ratePerHour,
+      'fixed_daily_rate': instance.fixedDailyRate,
       'startDate': instance.startDate.toIso8601String(),
       'endDate': instance.endDate.toIso8601String(),
       'maxRiders': instance.maxRiders,
@@ -966,7 +971,7 @@ Map<String, dynamic> _$GeofenceToJson(Geofence instance) => <String, dynamic>{
       'verificationSuccessRate': instance.verificationSuccessRate,
       'averageHourlyRate': instance.averageHourlyRate,
       'areaType': instance.areaType,
-      'targetCoverageHours': instance.targetCoverageHours,
+      'target_coverage_hours': instance.targetCoverageHours,
       'verificationFrequency': instance.verificationFrequency,
       'specialInstructions': instance.specialInstructions,
       'description': instance.description,

@@ -847,13 +847,13 @@ class _VerificationJoinDialogState extends ConsumerState<_VerificationJoinDialog
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
+            const Icon(
               Icons.error_outline,
               color: AppColors.error,
               size: 64,
             ),
             const SizedBox(height: 16),
-            Text(
+            const Text(
               'Cannot Join Geofence',
               style: TextStyle(
                 fontSize: 18,

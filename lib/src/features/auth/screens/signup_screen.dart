@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/providers/auth_provider.dart';
@@ -114,36 +114,41 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                         ),
                         const SizedBox(height: 16),
                         
-                        IntlPhoneField(
+                        TextFormField(
                           controller: _phoneController,
-                          initialCountryCode: 'NG',
                           enabled: !authState.isLoading,
+                          keyboardType: TextInputType.phone,
                           decoration: InputDecoration(
                             hintText: '803 XXX XXXX',
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
                             prefixIcon: const Icon(Icons.phone),
+                            suffixIcon: _isPhoneValid && _phoneController.text.isNotEmpty
+                                ? const Icon(Icons.check_circle, color: AppColors.success)
+                                : null,
                           ),
-                          onChanged: (phone) {
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(11), // Max length for Nigerian numbers
+                            _NigerianPhoneFormatter(),
+                          ],
+                          onChanged: (value) {
                             setState(() {
-                              _completePhoneNumber = phone.completeNumber;
-                              // Use our custom validation instead of IntlPhoneField's built-in validation
-                              _isPhoneValid = _authService.isValidNigerianPhone(phone.completeNumber);
+                              _completePhoneNumber = value.replaceAll(' ', ''); // Remove spaces for backend
+                              _isPhoneValid = _authService.isPhoneNumber(_completePhoneNumber);
                             });
                           },
-                          validator: (phone) {
-                            if (phone == null || phone.completeNumber.isEmpty) {
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
                               return 'Please enter a phone number';
                             }
-                            // Use our custom validation instead of IntlPhoneField's built-in validation
-                            if (!_authService.isValidNigerianPhone(phone.completeNumber)) {
+                            final cleanValue = value.replaceAll(' ', '');
+                            if (!_authService.isPhoneNumber(cleanValue)) {
                               return 'Please enter a valid Nigerian phone number';
                             }
                             return null;
                           },
-                          disableLengthCheck: false,
-                          flagsButtonPadding: const EdgeInsets.symmetric(horizontal: 16),
                         ),
                         
                         const SizedBox(height: 8),
@@ -391,5 +396,39 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     } catch (e) {
       // Error is handled by the provider
     }
+  }
+}
+
+class _NigerianPhoneFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final text = newValue.text;
+    
+    // Format Nigerian phone numbers with spaces for better readability
+    // 08066697348 -> 0806 669 7348
+    if (text.length >= 4) {
+      final buffer = StringBuffer();
+      buffer.write(text.substring(0, 4));
+      
+      if (text.length > 4) {
+        buffer.write(' ');
+        buffer.write(text.substring(4, text.length > 7 ? 7 : text.length));
+        
+        if (text.length > 7) {
+          buffer.write(' ');
+          buffer.write(text.substring(7));
+        }
+      }
+      
+      return TextEditingValue(
+        text: buffer.toString(),
+        selection: TextSelection.collapsed(offset: buffer.length),
+      );
+    }
+    
+    return newValue;
   }
 }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:intl_phone_field/intl_phone_field.dart';
 
 import '../../../core/services/auth_service.dart';
 import '../../../core/theme/app_colors.dart';
@@ -28,7 +27,6 @@ class _FlexibleAuthInputState extends State<FlexibleAuthInput> {
   String _inputType = 'unknown';
   bool _isPhoneMode = false;
   bool _isValid = false;
-  String _phoneNumber = '';
 
   @override
   void initState() {
@@ -38,8 +36,13 @@ class _FlexibleAuthInputState extends State<FlexibleAuthInput> {
 
   void _updateInputType(String value, {bool notifyParent = true}) {
     final inputType = _authService.getInputType(value);
+    
+    // Improved phone mode detection for Nigerian numbers
     final shouldBePhoneMode = inputType.startsWith('phone') || 
-                              (value.startsWith('0') || value.startsWith('+'));
+                              value.startsWith('0') || 
+                              value.startsWith('+') ||
+                              value.startsWith('234') ||
+                              (value.length >= 1 && RegExp(r'^[789]').hasMatch(value));
     
     setState(() {
       _inputType = inputType;
@@ -67,10 +70,10 @@ class _FlexibleAuthInputState extends State<FlexibleAuthInput> {
   }
 
   Widget _buildPhoneInput() {
-    return IntlPhoneField(
+    return TextFormField(
       controller: widget.controller,
-      initialCountryCode: 'NG',
       enabled: widget.enabled,
+      keyboardType: TextInputType.phone,
       decoration: InputDecoration(
         hintText: widget.hintText ?? '803 XXX XXXX',
         border: OutlineInputBorder(
@@ -78,23 +81,31 @@ class _FlexibleAuthInputState extends State<FlexibleAuthInput> {
         ),
         prefixIcon: const Icon(Icons.phone),
         suffixIcon: _getInputStatusIcon(),
+        helperText: _getHelperText(),
+        helperStyle: TextStyle(
+          color: _getHelperTextColor(),
+          fontSize: 12,
+        ),
       ),
-      onChanged: (phone) {
-        _phoneNumber = phone.completeNumber;
-        _updateInputType(_phoneNumber);
+      inputFormatters: [
+        FilteringTextInputFormatter.digitsOnly,
+        LengthLimitingTextInputFormatter(11), // Max length for Nigerian numbers (08066697348)
+        _NigerianPhoneFormatter(),
+      ],
+      onChanged: (value) {
+        _updateInputType(value);
       },
-      validator: (phone) {
-        if (phone == null || phone.completeNumber.isEmpty) {
+      validator: (value) {
+        if (value == null || value.isEmpty) {
           return 'Please enter a phone number';
         }
-        // Use our custom validation instead of IntlPhoneField's built-in validation
-        if (!_authService.isValidNigerianPhone(phone.completeNumber)) {
+        
+        if (!_authService.isPhoneNumber(value)) {
           return 'Please enter a valid Nigerian phone number';
         }
+        
         return null;
       },
-      disableLengthCheck: false,
-      flagsButtonPadding: const EdgeInsets.symmetric(horizontal: 16),
     );
   }
 
@@ -217,5 +228,39 @@ class UpperCaseTextFormatter extends TextInputFormatter {
       text: newValue.text.toUpperCase(),
       selection: newValue.selection,
     );
+  }
+}
+
+class _NigerianPhoneFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final text = newValue.text;
+    
+    // Format Nigerian phone numbers with spaces for better readability
+    // 08066697348 -> 0806 669 7348
+    if (text.length >= 4) {
+      final buffer = StringBuffer();
+      buffer.write(text.substring(0, 4));
+      
+      if (text.length > 4) {
+        buffer.write(' ');
+        buffer.write(text.substring(4, text.length > 7 ? 7 : text.length));
+        
+        if (text.length > 7) {
+          buffer.write(' ');
+          buffer.write(text.substring(7));
+        }
+      }
+      
+      return TextEditingValue(
+        text: buffer.toString(),
+        selection: TextSelection.collapsed(offset: buffer.length),
+      );
+    }
+    
+    return newValue;
   }
 }

@@ -273,9 +273,13 @@ class ProfileScreen extends ConsumerWidget {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.of(context).pop();
-              ref.read(authProvider.notifier).logout();
+              await ref.read(authProvider.notifier).logout();
+              // Explicitly navigate to welcome screen after logout
+              if (context.mounted) {
+                context.go('/auth/welcome');
+              }
             },
             child: const Text(
               'Logout',

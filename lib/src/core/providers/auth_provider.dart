@@ -10,12 +10,14 @@ class AuthState {
   final bool isLoading;
   final Rider? rider;
   final String? error;
+  final String? phone_number;
 
   const AuthState({
     this.isAuthenticated = false,
     this.isLoading = false,
     this.rider,
     this.error,
+    this.phone_number,
   });
 
   AuthState copyWith({
@@ -23,12 +25,14 @@ class AuthState {
     bool? isLoading,
     Rider? rider,
     String? error,
+    String? phone_number,
   }) {
     return AuthState(
       isAuthenticated: isAuthenticated ?? this.isAuthenticated,
       isLoading: isLoading ?? this.isLoading,
       rider: rider ?? this.rider,
       error: error,
+      phone_number: phone_number,
     );
   }
 }
@@ -89,7 +93,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final result = await _authService.sendLoginOTP(identifier);
       
       if (result.success) {
-        state = state.copyWith(isLoading: false);
+        state = state.copyWith(isLoading: false, phone_number: result.phone_number);
         return true;
       } else {
         state = state.copyWith(
@@ -198,9 +202,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> logout() async {
-    await HiveService.clearAuthToken();
-    await HiveService.clearRider();
+    // Use AuthService logout for comprehensive cleanup
+    await _authService.logout();
     
+    // Reset auth provider state
     state = const AuthState();
   }
 

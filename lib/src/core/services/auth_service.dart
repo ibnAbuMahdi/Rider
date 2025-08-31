@@ -6,6 +6,7 @@ import '../models/rider.dart';
 import '../constants/app_constants.dart';
 import 'api_service.dart';
 import '../storage/hive_service.dart';
+import 'location_service.dart';
 
 class AuthResult {
   final bool success;
@@ -31,12 +32,14 @@ class AuthResult {
 
 class OTPResult {
   final bool success;
+  final String? phone_number;
   final String? error;
   final String? errorCode;
   final int? expiresInMinutes;
 
   const OTPResult({
     required this.success,
+    this.phone_number,
     this.error,
     this.errorCode,
     this.expiresInMinutes,
@@ -337,14 +340,18 @@ class AuthService {
         print('⚠️ Logout API call failed: $e');
       }
     } finally {
-      // Clear all stored auth data
-      await HiveService.clearAuthData();
+      // Clear all user-specific data (comprehensive cleanup)
+      await HiveService.clearUserData();
       
       // Clear OTP cache
       _otpCache.clear();
       
+      // Clear location service user data
+      final locationService = LocationService.instance;
+      await locationService.clearUserLocationData();
+      
       if (kDebugMode) {
-        print('🧹 Auth data cleared locally');
+        print('🧹 All user data cleared successfully on logout');
       }
     }
   }
@@ -525,6 +532,7 @@ class AuthService {
         
         return OTPResult(
           success: true,
+          phone_number: data['phone_number'],
           expiresInMinutes: data['expires_in_minutes'] ?? 5,
         );
       } else {
@@ -538,7 +546,7 @@ class AuthService {
     } on ApiException catch (e) {
       if (e.statusCode == 404) {
         return const OTPResult(
-          success: false, 
+          success: false,
           error: 'Account not found',
           errorCode: 'ACCOUNT_NOT_FOUND',
         );

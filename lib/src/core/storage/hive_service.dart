@@ -416,6 +416,58 @@ class HiveService {
     await clearRider();
   }
 
+  // Clear all user-specific data on logout (comprehensive cleanup)
+  static Future<void> clearUserData() async {
+    try {
+      // Clear authentication data
+      await clearAuthData();
+      
+      // Clear user-specific data that should not persist between different users
+      await _verificationBox.clear();        // User's verification history
+      await _locationBox.clear();            // User's location tracking data
+      await _earningsBox.clear();            // User's earnings records
+      await _offlineQueueBox.clear();        // User's pending actions
+      
+      // Clear hourly tracking data
+      await clearCurrentHourlyWindow();      // Current tracking session
+      await clearCompletedHourlyWindows();   // Pending sync windows
+      
+      // Clear user-specific settings but keep app-level settings
+      final settingsKeysToRemove = <String>[];
+      for (final key in _settingsBox.keys) {
+        final keyStr = key.toString();
+        // Remove user-specific settings
+        if (keyStr.startsWith('otp_rate_limit_') ||
+            keyStr.startsWith('backend_calc_') ||
+            keyStr == 'last_stationary_time' ||
+            keyStr == 'last_random_verification_time' ||
+            keyStr == 'device_id') {
+          settingsKeysToRemove.add(keyStr);
+        }
+      }
+      
+      for (final key in settingsKeysToRemove) {
+        await _settingsBox.delete(key);
+      }
+      
+      if (kDebugMode) {
+        print('🧹 User data cleared successfully');
+        print('   - Verification requests: cleared');
+        print('   - Location records: cleared');  
+        print('   - Earnings records: cleared');
+        print('   - Offline queue: cleared');
+        print('   - Hourly tracking: cleared');
+        print('   - User settings: ${settingsKeysToRemove.length} keys cleared');
+      }
+      
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error clearing user data: $e');
+      }
+      rethrow;
+    }
+  }
+
   // OTP rate limiting methods
   static Future<void> setOTPRateLimit(String phoneNumber) async {
     await _settingsBox.put('otp_rate_limit_$phoneNumber', DateTime.now().toIso8601String());

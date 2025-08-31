@@ -1693,4 +1693,43 @@ class LocationService {
       }
     }
   }
+  
+  /// Clear all user-specific location data on logout
+  Future<void> clearUserLocationData() async {
+    try {
+      if (kDebugMode) {
+        print('🧹 LOCATION SERVICE: Clearing user data on logout...');
+      }
+      
+      // Stop all tracking first
+      await stopTracking();
+      
+      // Clear any remaining state
+      _lastPosition = null;
+      _wasInsideGeofence = false;
+      _activeCampaignId = null;
+      _activeCampaign = null;
+      _geofenceAssignments.clear();
+      
+      // Cancel all timers
+      _stationaryTimer?.cancel();
+      _stationaryTimer = null;
+      _geofenceCheckTimer?.cancel();
+      _geofenceCheckTimer = null;
+      _periodicLocationTimer?.cancel();
+      _periodicLocationTimer = null;
+      
+      // Reset tracking state
+      _isTracking = false;
+      _isGettingPosition = false;
+      
+      if (kDebugMode) {
+        print('✅ LOCATION SERVICE: User data cleared successfully');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ LOCATION SERVICE: Error clearing user data: $e');
+      }
+    }
+  }
 }

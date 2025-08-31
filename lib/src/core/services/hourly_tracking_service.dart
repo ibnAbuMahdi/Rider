@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:uuid/uuid.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import '../models/hourly_tracking_models.dart';
 import '../models/location_record.dart';
 import '../models/campaign.dart';
@@ -454,6 +455,17 @@ class HourlyTrackingService {
         }
       }
 
+      // Check network connectivity before making API calls
+      final hasNetwork = await _hasNetworkConnectivity();
+      if (!hasNetwork) {
+        if (kDebugMode) {
+          print('🌐 No network connectivity - saving window locally for later sync');
+        }
+        // Save to pending sync when offline
+        await HiveService.saveCompletedHourlyWindow(window);
+        return;
+      }
+
       // Convert location samples to API format
       final locationSamples = window.samples.map((sample) => {
         'id': sample.id,
@@ -623,7 +635,7 @@ class HourlyTrackingService {
       final effectiveMinutes = effectiveTime.inMinutes.toDouble();
       final billableMinutes = (effectiveMinutes % 1 > 0) ? effectiveMinutes.ceil() : effectiveMinutes.toInt();
 
-      // Get hourly rate from current assignment
+      // Get hourly rate from current assignment (uses SAME data as home screen)
       final hourlyRate = await _getCurrentHourlyRate();
       if (hourlyRate <= 0) {
         if (kDebugMode) {
@@ -675,6 +687,19 @@ class HourlyTrackingService {
     return hour >= WORKING_START_HOUR && hour < WORKING_END_HOUR;
   }
 
+  /// Check if device has network connectivity
+  Future<bool> _hasNetworkConnectivity() async {
+    try {
+      final connectivityResult = await Connectivity().checkConnectivity();
+      return connectivityResult != ConnectivityResult.none;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error checking connectivity: $e');
+      }
+      return false; // Assume offline if error
+    }
+  }
+
   /// Validate if window has sufficient data for earnings calculation
   bool _isValidWindow(HourlyTrackingWindow window) {
     final geofenceSamples = window.samples.where((s) => s.isWithinGeofence).length;
@@ -718,37 +743,65 @@ class HourlyTrackingService {
     return 'Campaign Name';
   }
 
-  /// Get the hourly rate from the current assignment
+  /// Get the hourly rate from the current assignment (uses SAME data as home screen)
   Future<double> _getCurrentHourlyRate() async {
     try {
-      if (_currentAssignmentId == null) {
-        // Fallback: get from LocationService's current geofence assignments
-        final locationService = LocationService.instance;
-        final assignments = locationService.geofenceAssignments;
-        
+      // Get rate from LocationService assignments (SAME data as home screen uses)
+      final locationService = LocationService.instance;
+      final assignments = locationService.geofenceAssignments;
+      
+      if (kDebugMode) {
+        print('🔍 DEBUGGING RATE LOOKUP:');
+        print('   - Current geofence ID: $_currentGeofenceId');
+        print('   - Current assignment ID: $_currentAssignmentId');
+        print('   - Available assignments: ${assignments.length}');
+        for (int i = 0; i < assignments.length; i++) {
+          final a = assignments[i];
+          print('   - [$i] ${a.geofenceName} (ID: ${a.geofenceId}) - Type: ${a.rateType} - Rate: ₦${a.ratePerHour}/hr');
+        }
+      }
+      
+      // Look for current geofence assignment
+      for (final assignment in assignments) {
+        if (assignment.geofenceId == _currentGeofenceId && 
+            assignment.rateType == 'per_hour') {
+          final rate = assignment.ratePerHour ?? 0.0;
+          if (kDebugMode) {
+            print('✅ FOUND EXACT MATCH: ₦$rate/hr for ${assignment.geofenceName} (${assignment.geofenceId})');
+            print('   - This is the SAME rate the home screen should display!');
+          }
+          return rate;
+        }
+      }
+      
+      // Third: If we have assignment ID, look for any per_hour assignment
+      if (_currentAssignmentId != null) {
         for (final assignment in assignments) {
-          if (assignment.geofenceId == _currentGeofenceId && 
+          if (assignment.id == _currentAssignmentId && 
               assignment.rateType == 'per_hour') {
             final rate = assignment.ratePerHour ?? 0.0;
             if (kDebugMode) {
-              print('📊 Found hourly rate from LocationService: ₦$rate/hr');
+              print('📊 Found hourly rate from assignment ID: ₦$rate/hr for assignment ${assignment.id}');
             }
             return rate;
           }
         }
       }
       
-      // If we have assignment ID, try to get it from stored data
-      // For now, return a fallback rate
+      // No rate found - return 0.0 instead of hardcoded 500.0 fallback
       if (kDebugMode) {
-        print('⚠️ Using fallback hourly rate - assignment data not accessible');
+        print('⚠️ No hourly rate found. Using 0.0 instead of fallback rate');
+        print('  - Available assignments: ${assignments.length}');
+        for (final assignment in assignments) {
+          print('    - ${assignment.geofenceName} (${assignment.rateType}): ₦${assignment.ratePerHour}/hr');
+        }
       }
-      return 500.0; // Fallback rate
+      return 0.0;
     } catch (e) {
       if (kDebugMode) {
         print('❌ Error getting hourly rate: $e');
       }
-      return 500.0; // Fallback rate
+      return 0.0;
     }
   }
 
@@ -756,6 +809,16 @@ class HourlyTrackingService {
   static Future<void> performPeriodicSync() async {
     try {
       final instance = HourlyTrackingService.instance;
+      
+      // Check connectivity before attempting sync
+      final hasNetwork = await instance._hasNetworkConnectivity();
+      if (!hasNetwork) {
+        if (kDebugMode) {
+          print('🌐 PERIODIC SYNC: No network connectivity - skipping sync');
+        }
+        return;
+      }
+      
       await instance.syncPendingWindows();
       
       if (kDebugMode) {
@@ -861,6 +924,15 @@ class HourlyTrackingService {
   /// Sync pending hourly tracking windows with backend when online
   Future<void> syncPendingWindows() async {
     try {
+      // Check network connectivity before attempting sync
+      final hasNetwork = await _hasNetworkConnectivity();
+      if (!hasNetwork) {
+        if (kDebugMode) {
+          print('🌐 SYNC: No network connectivity - skipping sync');
+        }
+        return;
+      }
+
       final pendingWindows = HiveService.getPendingSyncWindows();
       if (pendingWindows.isEmpty) {
         if (kDebugMode) {

@@ -227,7 +227,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
 
     // Clear any previous errors
     ref.read(authProvider.notifier).clearError();
-
+    
     try {
       final success =
           await ref.read(authProvider.notifier).sendLoginOTP(_identifier);
@@ -235,6 +235,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
       if (success && mounted) {
         // Navigate to OTP verification with the resolved phone number
         final authService = AuthService();
+        final authState = ref.read(authProvider);
         String phoneNumber;
 
         if (authService.isPhoneNumber(_identifier)) {
@@ -244,7 +245,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
           phoneNumber = _identifier;
         }
 
-        context.push('/auth/verify-otp', extra: phoneNumber);
+        context.push('/auth/verify-otp', extra: authState.phone_number);
       }
     } catch (e) {
       // Error is handled by the provider
